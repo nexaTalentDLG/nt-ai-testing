@@ -121,13 +121,28 @@ Hiring team members and hiring managers
 ###############################################################################
 TASK_FORMAT_DEFINITIONS = {
     "Write a job description": """
-Output should contain the following headings: “About Us, Job Summary, Responsibilities, Requirements, Qualifications, Key Skills, Benefits, Salary, and Work Environment”. 
+Output should contain the following headings: “About Us, Job Summary, Key Responsibilities, Requirements, Qualifications, Key Skills, Benefits, Salary, and Work Environment”. 
 Each section should build upon the previous ones to create a cohesive narrative. Use bullet points for Responsibilities, Requirements, and Benefits sections. 
-Keep About Us section under 150 words. 
-Ensure all requirements listed are truly mandatory. 
-Include location and citizenship requirements when applicable. 
-Always verify salary ranges comply with local pay transparency laws. 
-Reference specific technologies/tools rather than general terms when possible.
+Keep About Us section under 150 words. Ensure all requirements listed are truly mandatory. Include location and citizenship requirements when applicable. 
+Always verify salary ranges comply with local pay transparency laws. Reference specific technologies/tools rather than general terms when possible. Follow the initial example below for the formatting of each section:
+
+EXAMPLE:
+**About Us**
+At Intuitive Safety Solutions, we are dedicated to providing top-tier safety consulting services, helping our clients create safer workplaces across industries. Our commitment to excellence, innovation in safety solutions, and a workplace culture that values diversity, equity, and inclusion are at the heart of everything we do.
+
+**Job Summary**
+We are seeking a local Senior Safety Manager to join us as an Owner's Representative on a project in the Folsom, California area. The project will encompass the construction of a new lab and improvements to existing tenant spaces. This pivotal role will steer our on-site safety initiatives, ensuring a safe and compliant work environment for all project participants.
+
+**Key Responsibilities**
+- Lead the implementation of comprehensive safety protocols for the construction project.
+- Conduct regular safety inspections and audits to identify and mitigate risks.
+- Act as a key liaison between the project team, contractors, and stakeholders on matters related to safety.
+- Develop and deliver safety training sessions to project staff and contractors.
+- Manage incident investigation processes, including reporting and follow-up actions to prevent recurrence.
+- Continuously update safety documentation and compliance records in alignment with local, state, and federal regulations.
+
+>>>Continue this formatting for the Requirements, Qualifications, Key Skills, Benefits, Salary, and Work Environment sections following the instructions above.
+
 """,
     "Build Interview Questions": """
 Output should contain a set of unique situational interview questions with follow up questions based on provided interview competencies, 
@@ -224,15 +239,20 @@ if st.button("Generate"):
                 # Extract the generated response
                 final_response = response.choices[0].message.content.strip()
 
-                # Find the first instance of "**" and strip everything before it
-                if "**" in final_response:
-                    clean_output = final_response.split("**", 1)[1]
-                    clean_output = "**" + clean_output  # Re-add the header
+                # Check if the response contains the confidentiality message
+                if final_response.strip() == CONFIDENTIALITY_MESSAGE.strip():
+                    # Display the confidentiality message as a warning
+                    st.warning(CONFIDENTIALITY_MESSAGE)
                 else:
-                    clean_output = final_response  # Fallback to the full response if the header is not found
+                    # Strip everything before the first instance of "**" or keep as-is
+                    if "**" in final_response:
+                        clean_output = final_response.split("**", 1)[1]
+                        clean_output = "**" + clean_output  # Re-add the header
+                    else:
+                        clean_output = final_response  # Fallback to the full response if no header is found
 
-                # Display the cleaned content to the user
-                st.text_area("Generated Content", value=clean_output.strip(), height=400)
+                    # Display the cleaned content
+                    st.text_area("Generated Content", value=clean_output.strip(), height=400)
 
             except Exception as e:
                 st.error(f"An error occurred: {e}")

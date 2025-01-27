@@ -245,12 +245,21 @@ if st.button("Generate"):
                 # Extract the generated response
                 final_response = response.choices[0].message.content.strip()
 
-                # Check if the response contains the confidentiality message
-                if final_response.strip() == CONFIDENTIALITY_MESSAGE.strip():
-                    # Display the confidentiality message as a warning
+                # Parse {model_judgement} value from the response
+                model_judgement_value = None
+                if "{model_judgement}" in final_response:
+                    try:
+                        judgement_line = final_response.split("{model_judgement}")[1].split("\n")[0].strip()
+                        model_judgement_value = int(judgement_line)  # Convert to an integer
+                    except ValueError:
+                        st.error("Unable to parse {model_judgement} value as an integer.")
+                        st.stop()
+
+                # Check if {model_judgement} is less than or equal to 2
+                if model_judgement_value is not None and model_judgement_value <= 2:
                     st.warning(CONFIDENTIALITY_MESSAGE)
                 else:
-                    # Strip everything before the first instance of "**" or keep as-is
+                    # Strip everything before the first relevant header for valid content
                     if "**" in final_response:
                         clean_output = final_response.split("**", 1)[1]
                         clean_output = "**" + clean_output  # Re-add the header

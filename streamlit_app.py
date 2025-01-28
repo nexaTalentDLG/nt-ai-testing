@@ -35,6 +35,55 @@ SPINNER_TEXTS = {
 }
 
 ###############################################################################
+# Mappings for task look-fors
+###############################################################################
+
+TASK_LOOK_FORS = {
+    "Write a job description": (
+        "Users may submit information about job details, such as job title, responsibilities, qualifications, location, pay range, "
+        "and details about the company. Look for specific job requirements or preferences that need to be incorporated."
+    ),
+    "Build Interview Questions": (
+        "Users may submit a job description, competencies, or specific areas they want interview questions to focus on. "
+        "They might also ask for questions related to specific skills or experiences relevant to the role."
+    ),
+    "Create response guides": (
+        "Users may submit a question or set of questions for which they need example responses. "
+        "They might also ask for help understanding how to evaluate responses using the NexaTalent rubric."
+    ),
+    "Evaluate candidate responses": (
+        "Users may submit responses from candidates or summaries of candidate answers. "
+        "Look for specific examples of candidate behavior or statements that need to be evaluated."
+    )
+}
+
+###############################################################################
+# Mappings for task overviews
+###############################################################################
+
+TASK_OVERVIEWS = {
+    "Write a job description": (
+        "This task involves crafting a detailed job description that includes sections like 'About Us', "
+        "'Job Summary', 'Key Responsibilities', 'Requirements', 'Qualifications', and more. The goal is "
+        "to attract qualified candidates by clearly defining the role, responsibilities, and expectations."
+    ),
+    "Build Interview Questions": (
+        "This task focuses on creating a set of unique situational interview questions tailored to the job's competencies "
+        "and requirements. These questions are designed to assess a candidate's suitability for the role, using follow-up "
+        "questions to explore their experience and problem-solving skills."
+    ),
+    "Create response guides": (
+        "This task requires generating sample responses for the interview questions using the NexaTalent rubric. "
+        "Each response corresponds to proficiency levels (e.g., Concern, Mixed, Strength) and helps interviewers "
+        "evaluate candidates' answers effectively."
+    ),
+    "Evaluate candidate responses": (
+        "This task involves analyzing and scoring candidates' responses to interview questions using a 1-5 scale. "
+        "Justifications for the scores are provided, citing examples from the responses and linking them to the NexaTalent rubric."
+    )
+}
+
+###############################################################################
 # Helper Functions for Input Analysis and Validation
 ###############################################################################
 import re
@@ -81,22 +130,24 @@ You have NexaTalent Rubrics as a part of your knowledge base which you use to im
 # OBJECTIVE #
 When a user submits content to you, follow the following steps:
 
-1. Before generating content, analyze the submitted input and generate a summary of what it is the user is attempting to do. == {user_summary}
-    ***NOTE: Rememeber the user is likely asking to complete a task that will help them with hiring. Consider this in the generation of {user_summary}
-2. Review your task,[TASK], and generate a summary of what this means you should be trying to do for the user. == {model_summary}
-3. Compare {user_summary} and {model_summary} to determine how similar these tasks are. Give me a brief summary of how similar these tasks are. This summary == {model_comparison}
-4. Use {model_comparison} to generate a similarity score between 0 and 5 where 0 is completely different tasks and 5 is the exact same. This score should be a numeric value and be set to the variable {model_judgement}
-    ***NOTE: Be sure to consider different ways [TASK] might be phrased when making this judgement. For example asking to "create" or expressing a "need" for 
-    interview questions would be the same as asking to "build" interview questions. 
-4. If {model_judgement} has a value less than or equal to 2, respond with the confidentiality message below:
+1. Before generating content, review the user's submission and identify relevant details. Users may submit the following types of content for this task: 
+   [TASK_LOOK_FORS]
+
+2. Analyze the submitted input and generate a summary of what it is the user is attempting to do. == {user_summary}
+3. Review your task, [TASK_OVERVIEW], and generate a summary of what this means you should be trying to do for the user. == {model_summary}
+4. Compare {user_summary} and {model_summary} to determine how similar these tasks are. This summary == {model_comparison}
+5. Use {model_comparison} to generate a similarity score between 0 and 5 where 0 is completely different tasks and 5 is the exact same. This score should be a numeric value and be set to the variable {model_judgement}
+   ***NOTE: Be sure to consider different ways [TASK] might be phrased when making this judgement. For example asking to "create" or expressing a "need" for 
+   interview questions would be the same as asking to "build" interview questions. 
+6. If {model_judgement} has a value less than or equal to 2, respond with the confidentiality message below:
    "[confidentiality_message]"
-5. If {model_judgement} has a value greater than 2, proceed to review any additional content submitted by the user 
+7. If {model_judgement} has a value greater than 2, proceed to review any additional content submitted by the user 
    and create an initial draft of the final output.
-6. Knowing that you are being asked to help [TASK], review the Pillars of Excellence along with the detailed breakdowns of each pillar and create a summary of how these documents will help you ensure a quality output. 
-7. Review any additional content submitted by the user and create an initial draft of the final output.
+8. Knowing that you are being asked to help [TASK_OVERVIEW], review the Pillars of Excellence along with the detailed breakdowns of each pillar and create a summary of how these documents will help you ensure a quality output. 
+9. Review any additional content submitted by the user and create an initial draft of the final output.
 ***NOTE: Consider the [task_format] when generating your initial draft
-8. Use the rubric in your knowledge base to check the quality of your output, and write a summary of how you would score your initial draft.
-9. Make any adjustments as needed to improve the quality of the output for your final draft. 
+10. Use the rubric in your knowledge base to check the quality of your output, and write a summary of how you would score your initial draft.
+11. Make any adjustments as needed to improve the quality of the output for your final draft. 
 
 # STYLE #
 You are an expert in the generation of hiring content with experience in writing job descriptions, 
@@ -118,6 +169,7 @@ Hiring team members and hiring managers
 >>{model_judgement}
 [task_format]
 """
+
 
 ###############################################################################
 # TASK_FORMAT_DEFINITIONS: Full text for each [task_format] based on selection
@@ -242,9 +294,13 @@ if st.button("Generate"):
 
         with st.spinner(spinner_text):
             chosen_task_format = TASK_FORMAT_DEFINITIONS[task]
+            chosen_task_overview = TASK_OVERVIEWS[task]
+            chosen_task_look_fors = TASK_LOOK_FORS[task]
+
             final_instructions = (
                 MASTER_INSTRUCTIONS
-                .replace("[TASK]", task)
+                .replace("[TASK_OVERVIEW]", chosen_task_overview)
+                .replace("[TASK_LOOK_FORS]", chosen_task_look_fors)
                 .replace("[task_format]", chosen_task_format.strip())
                 .replace("[confidentiality_message]", CONFIDENTIALITY_MESSAGE)
                 + "\n\n"
@@ -252,6 +308,7 @@ if st.button("Generate"):
                 "Only provide the final output per the #RESPONSE# section. "
                 "Do not include any chain-of-thought, steps, or internal reasoning."
             )
+
 
             try:
                 response = openai.chat.completions.create(

@@ -164,7 +164,7 @@ Your tone should be educational and informative. Outputs should be concise and u
 Hiring team members and hiring managers
 
 # RESPONSE #
-**{user_summary}
+>>{user_summary}
 >>{model_summary}
 >>{model_comparison}
 >>{model_judgement}
@@ -217,7 +217,7 @@ Main Question: Can you describe a successful initiative you’ve led in the Club
 """,
     "Create response guides": """
 Objective: Generate a cohesive set of sample responses based on the NexaTalent rubric, ensuring each response reflects the corresponding level of proficiency.
-Structure: For each main question, write five sample responses that align with levels 1 through 5 of the NexaTalent rubric. Label each response clearly as follows: Concern (Level 1), Mild Concern (Level 2), Mixed (Level 3), Mild Strength (Level 4), Strength (Level 5)
+Structure: For each main question, write five sample responses that align with levels 1 through 5 of the NexaTalent rubric. Label each response clearly as follows: Concern, Mild Concern, Mixed, Mild Strength, Strength
 Integration: Generate one unified set of samples for each question, incorporating responses to any follow-up questions as part of the final output.
 Summary: After providing the sample responses, condense the overall summaries for each proficiency level into a format that is easily digestible, clearly differentiating the levels while maintaining the core insights about candidate competencies.
 Clarity and Conciseness: Ensure that each response and summary is concise, avoids unnecessary jargon, and is written in an educational tone to facilitate understanding among hiring team members.

@@ -163,24 +163,29 @@ Main Question: Can you describe a successful initiative you’ve led in the Club
 
 """,
     "Create response guides": """
-Output should contain a set of sample responses based on NexaTalent rubric in your knowledge base. 
-For each question you should write 5 sample responses that align with levels 1 through 5 in the NexaTalent rubric. 
-These will be labeled concern, mild-concern, mixed, mild-strength, or strength respectively in your final output. 
-You should generate one set of samples for each Main Question set, considering follow-up questions as part of the sample responses.
+Objective: Generate a cohesive set of sample responses based on the NexaTalent rubric, ensuring each response reflects the corresponding level of proficiency.
+Structure: For each main question, write five sample responses that align with levels 1 through 5 of the NexaTalent rubric. Label each response clearly as follows: Concern (Level 1), Mild Concern (Level 2), Mixed (Level 3), Mild Strength (Level 4), Strength (Level 5)
+Integration: Generate one unified set of samples for each question, incorporating responses to any follow-up questions as part of the final output.
+Summary: After providing the sample responses, condense the overall summaries for each proficiency level into a format that is easily digestible, clearly differentiating the levels while maintaining the core insights about candidate competencies.
+Clarity and Conciseness: Ensure that each response and summary is concise, avoids unnecessary jargon, and is written in an educational tone to facilitate understanding among hiring team members.
 
-**Main Question**
-Can you explain your approach to creating a strategic sales plan that aligns with an organization’s goals?
+Example Output:
+
+**Question Set**
+Describe a time when you identified and capitalized on a growth opportunity within a Club account, leading to mutual satisfaction and business expansion. How did you approach the partnership? 
+- Follow-up 1: How did you align your strategies with the retailer's objectives to foster a cooperative relationship? 
+- Follow-up 2: Can you share an example of how you handled a disagreement or challenge with a Club partner and turned it into a positive outcome?
 
 **Concern** 
-- The candidate is unable to articulate a clear or comprehensive planning approach.
+- The candidate exhibits minimal understanding of growth opportunities and partnership dynamics, with vague and unclear responses. They avoid complexities and lack engagement with essential business concepts. They may be suitable for entry-level roles under close supervision and would require significant development to progress in more strategic positions.
 **Mild Concern**
-- The candidate gives a basic outline without showing how it aligns with organizational goals, suggesting limited strategic insight.
+- This candidate reflects a limited understanding of key concepts related to growth and partnerships, often providing vague responses. They may recognize opportunities in theory but lack clear strategies for implementation. They would be suited for routine-oriented positions with considerable support and training needed to enhance their competencies.
 **Mixed** 
-- The candidate provides some alignment strategies but lacks depth in describing how they integrate these into the sales plan.
+- The candidate shows a basic grasp of growth opportunities, but their responses indicate reliance on routine practices and occasional gaps in strategic thinking. While they acknowledge challenges, they may struggle to align strategies with partner objectives. They could fit roles that allow for development while performing functional tasks but would benefit from additional coaching.
 **Mild Strength** 
-- The candidate outlines a clear plan with alignment strategies, showing an understanding of goal integration.
+- This candidate demonstrates a solid understanding of growth opportunities and relationship-building, though they may not consistently leverage these effectively. They are capable and reliable but might lack the depth of analysis and proactive engagement found in higher proficiency levels. They would excel in supportive roles within account management with structured guidance.
 **Strength** 
-- The candidate articulates a detailed strategic plan that aligns with goals and provides examples of successful execution.
+- The candidate is a proactive and results-oriented professional who seeks growth opportunities through thorough analysis and collaboration. They excel in building strong partnerships and effectively resolving challenges through constructive dialogue. Their ability to deliver measurable outcomes makes them an asset in business development and client management roles.
 
 """,
     "Evaluate candidate responses": """

@@ -112,9 +112,9 @@ Your tone should be educational and informative. Outputs should be concise and u
 Hiring team members and hiring managers
 
 # RESPONSE #
->>{user_summary}
->>{model_summary}
->>{model_judgement}
+**{user_summary}
+**{model_summary}
+**{model_judgement}
 [task_format]
 """
 

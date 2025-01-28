@@ -132,6 +132,7 @@ When a user submits content to you, follow the following steps:
 
 1. Before generating content, review the user's submission and identify relevant details. Users may submit the following types of content for this task: 
    [TASK_LOOK_FORS]
+   **If any of these are present in the user's input add 2 to the numeric value of {model_judgement}
 
 2. Analyze the submitted input and generate a summary of what it is the user is attempting to do. == {user_summary}
 3. Review your task, [TASK_OVERVIEW], and generate a summary of what this means you should be trying to do for the user. == {model_summary}

@@ -166,6 +166,21 @@ Output should contain a set of sample responses based on NexaTalent rubric in yo
 For each question you should write 5 sample responses that align with levels 1 through 5 in the NexaTalent rubric. 
 These will be labeled concern, mild-concern, mixed, mild-strength, or strength respectively in your final output. 
 You should generate one set of samples for each Main Question set, considering follow-up questions as part of the sample responses.
+
+**Main Question**
+Can you explain your approach to creating a strategic sales plan that aligns with an organization’s goals?
+
+**Concern** 
+- The candidate is unable to articulate a clear or comprehensive planning approach.
+**Mild Concern**
+- The candidate gives a basic outline without showing how it aligns with organizational goals, suggesting limited strategic insight.
+**Mixed** 
+- The candidate provides some alignment strategies but lacks depth in describing how they integrate these into the sales plan.
+**Mild Strength** 
+- The candidate outlines a clear plan with alignment strategies, showing an understanding of goal integration.
+**Strength** 
+- The candidate articulates a detailed strategic plan that aligns with goals and provides examples of successful execution.
+
 """,
     "Evaluate candidate responses": """
 Output should be a numerical score between 1-5 grading the candidates overall performance. This should be followed with a justification paragraph. 

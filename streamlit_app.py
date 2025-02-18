@@ -342,13 +342,13 @@ if st.button("Generate"):
                     temperature=0.7
                 )
 
-                # Extract the generated response
+                # Extract the full generated response (which includes the rationale text)
                 final_response = response.choices[0].message.content.strip()
 
-                # Log the tool selection along with input and output to Google Sheets
-                log_status = log_to_google_sheets(task, user_notes, final_response)
+                # Log the tool selection, user input, and full generated output (including rationale text)
+                log_to_google_sheets(task, user_notes, final_response)
 
-                # Parse {model_judgement} value from the response
+                # Parse {model_judgement} value from the full response
                 model_judgement_value = None
                 if "{model_judgement}" in final_response:
                     try:
@@ -358,22 +358,18 @@ if st.button("Generate"):
                         st.error("Unable to parse {model_judgement} value as an integer.")
                         st.stop()
 
-                # Check if {model_judgement} is less than or equal to 2
+                # If the judgement value is less than or equal to 2, display confidentiality message as a warning.
                 if model_judgement_value is not None and model_judgement_value <= 2:
                     st.warning(CONFIDENTIALITY_MESSAGE)
                 else:
-                    # Strip everything before the first relevant header for valid content
+                    # For display purposes, remove the rationale text from the final output.
                     if "**" in final_response:
                         clean_output = final_response.split("**", 1)[1]
-                        clean_output = "**" + clean_output  # Re-add the header
+                        clean_output = "**" + clean_output  # Re-add the header for display
                     else:
                         clean_output = final_response  # Fallback to the full response if no header is found
 
-                    # Display the cleaned content
                     st.text_area("Generated Content", value=clean_output.strip(), height=400)
-
-                # Display log status for debugging/informational purposes
-                st.info(f"Log status: {log_status}")
 
             except Exception as e:
                 st.error(f"An error occurred: {e}")

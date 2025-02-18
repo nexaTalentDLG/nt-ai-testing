@@ -22,13 +22,14 @@ openai.api_key = api_key
 ###############################################################################
 
 # Google Apps Script Webhook URL
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxQ8U9ybaiRnzS9v46V_LpP85unHisCOFzEnlCR7hgClJSw5SOF6LPdY7Q7isdPi75G/exec"
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyOQgEFdFn1zB6te0ho-bWE6NSEpfoyfjAfIPufF1RAWsWmSqXEeAGeL3osEJpM1Yqz/exec"
 
-def log_to_google_sheets(user_input, generated_output):
+def log_to_google_sheets(tool_selection, user_input, generated_output):
     """
-    Sends log data (user input and generated output) to Google Sheets via a webhook.
+    Sends log data (tool selection, user input, and generated output) to Google Sheets via a webhook.
     """
     data = {
+        "tool_selection": tool_selection,
         "user_input": user_input,
         "generated_output": generated_output
     }
@@ -37,6 +38,7 @@ def log_to_google_sheets(user_input, generated_output):
         return response.text
     except Exception as e:
         return f"Logging error: {e}"
+
 
 ###############################################################################
 # Mappings for dynamic assistant IDs
@@ -343,8 +345,8 @@ if st.button("Generate"):
                 # Extract the generated response
                 final_response = response.choices[0].message.content.strip()
 
-                # Log the input and generated output to Google Sheets
-                log_status = log_to_google_sheets(user_notes, final_response)
+                # Log the tool selection along with input and output to Google Sheets
+                log_status = log_to_google_sheets(task, user_notes, final_response)
 
                 # Parse {model_judgement} value from the response
                 model_judgement_value = None

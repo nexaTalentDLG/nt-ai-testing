@@ -1,8 +1,11 @@
 import os
 import openai
 import streamlit as st
+import requests  # Added for sending HTTP requests to the webhook
+import json
 from io import StringIO
 from dotenv import load_dotenv
+import re
 
 # Load environment variables
 load_dotenv()
@@ -13,6 +16,27 @@ if not api_key:
     st.stop()
 
 openai.api_key = api_key
+
+###############################################################################
+# Google Script for Automatic Data Logging
+###############################################################################
+
+# Google Apps Script Webhook URL
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxQ8U9ybaiRnzS9v46V_LpP85unHisCOFzEnlCR7hgClJSw5SOF6LPdY7Q7isdPi75G/exec"
+
+def log_to_google_sheets(user_input, generated_output):
+    """
+    Sends log data (user input and generated output) to Google Sheets via a webhook.
+    """
+    data = {
+        "user_input": user_input,
+        "generated_output": generated_output
+    }
+    try:
+        response = requests.post(WEBHOOK_URL, json=data)
+        return response.text
+    except Exception as e:
+        return f"Logging error: {e}"
 
 ###############################################################################
 # Mappings for dynamic assistant IDs
@@ -86,7 +110,6 @@ TASK_OVERVIEWS = {
 ###############################################################################
 # Helper Functions for Input Analysis and Validation
 ###############################################################################
-import re
 
 def summarize_input(user_input):
     # Generate a brief summary of the user's input
@@ -105,7 +128,6 @@ def validate_task_alignment(task, input_summary):
     else:
         return False, f"The user's input does not align with the selected task '{task}'. Please review the input and try again."
 
-
 ###############################################################################
 # Confidentiality Message
 ###############################################################################
@@ -116,7 +138,6 @@ To maintain these standards, we’ve designed this app with a specific focus, en
 
 If you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com.
 """
-
 
 ###############################################################################
 # MASTER_INSTRUCTIONS: Full instructions with placeholders [TASK] and [task_format]
@@ -170,7 +191,6 @@ Hiring team members and hiring managers
 >>{model_judgement}
 [task_format]
 """
-
 
 ###############################################################################
 # TASK_FORMAT_DEFINITIONS: Full text for each [task_format] based on selection
@@ -310,7 +330,6 @@ if st.button("Generate"):
                 "Do not include any chain-of-thought, steps, or internal reasoning."
             )
 
-
             try:
                 response = openai.chat.completions.create(
                     model="gpt-4o-mini",
@@ -323,6 +342,9 @@ if st.button("Generate"):
 
                 # Extract the generated response
                 final_response = response.choices[0].message.content.strip()
+
+                # Log the input and generated output to Google Sheets
+                log_status = log_to_google_sheets(user_notes, final_response)
 
                 # Parse {model_judgement} value from the response
                 model_judgement_value = None
@@ -347,6 +369,9 @@ if st.button("Generate"):
 
                     # Display the cleaned content
                     st.text_area("Generated Content", value=clean_output.strip(), height=400)
+
+                # Display log status for debugging/informational purposes
+                st.info(f"Log status: {log_status}")
 
             except Exception as e:
                 st.error(f"An error occurred: {e}")

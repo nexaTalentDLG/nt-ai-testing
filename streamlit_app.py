@@ -259,7 +259,7 @@ if st.button("Generate"):
                 "Create response guides": "NexaTalent Rubric for Candidate Responses.txt",
                 "Evaluate candidate responses": "NexaTalent Rubric for Candidate Responses.txt"
             }
-            rubric_file_path = os.path.join("required_materials", rubric_mapping.get(task, ""))
+            rubric_file_path = os.path.join("reference_materials", rubric_mapping.get(task, ""))
             rubric_context = ""
             if os.path.exists(rubric_file_path):
                 with open(rubric_file_path, "r", encoding="utf-8") as file:

@@ -19,6 +19,140 @@ if not api_key:
 openai.api_key = api_key
 
 ###############################################################################
+# Consent Tracker Setup
+###############################################################################
+# Replace with your actual Google Form webhook URL for consent tracking
+CONSENT_TRACKER_URL = "https://script.google.com/macros/s/AKfycbzZclgguubRjzWSHMWUBiMjWelPqKJ9K-EWZhLDf0unPdeobMYbSS4AW9UJPwCSQF7Q/exec"
+
+def log_consent(email):
+    """
+    Logs the timestamp, email address, and consent status ("I agree")
+    to a Google Form via the provided webhook.
+    """
+    timestamp = datetime.now().isoformat()
+    data = {
+        "timestamp": timestamp,
+        "email": email,
+        "consent": "I agree"
+    }
+    try:
+        response = requests.post(CONSENT_TRACKER_URL, json=data)
+        return response.text
+    except Exception as e:
+        st.error(f"Consent logging error: {e}")
+        return None
+
+# Ensure consent is tracked in session state.
+if "consent" not in st.session_state:
+    st.session_state.consent = False
+
+# Ensure consent is tracked in session state.
+if "consent" not in st.session_state:
+    st.session_state.consent = False
+
+# Display consent UI if consent is not yet given.
+if not st.session_state.consent:
+    consent_container = st.empty()  # Create a container for the consent UI.
+    with consent_container.container():
+        st.markdown("## NexaTalent Consent Agreement")
+        st.write('This versions of the NexaTalent app is currently in a testing phase. By entering your email and pressing **I understand and accept** you agree to the following:')
+        
+        # Detailed user agreement text.
+        user_agreement_text = """EARLY QUALITATIVE TESTING AGREEMENT & MUTUAL NON-DISCLOSURE AGREEMENT
+Effective Date: The date of acceptance below.
+Parties: This agreement is between NexaTalent ("Provider") and the individual accepting these terms ("Tester").
+This Agreement sets forth the terms under which the Tester is granted access to NexaTalent’s pre-alpha product for qualitative testing while ensuring confidentiality and proper handling of proprietary information.
+
+SECTION 1: EARLY QUALITATIVE TESTING AGREEMENT
+This section governs the Tester’s participation in NexaTalent’s pre-alpha testing phase, where feedback will be collected to refine product usability, functionality, and experience.
+1. Confidentiality
+The Tester acknowledges that all materials, discussions, prototypes, designs, test data, feedback, documentation, and any related information provided before, during, or after the testing phase are confidential and proprietary to NexaTalent.
+Tester agrees not to share, copy, disclose, or distribute any information related to the Testing Session, including but not limited to screenshots, descriptions, recordings, discussions, or findings.
+Any and all insights, feedback, reports, or analysis generated during testing become the exclusive intellectual property of NexaTalent.
+These confidentiality obligations remain in effect for three (3) years from the date of acceptance or until NexaTalent publicly releases the Product, whichever is later.
+Any breach of confidentiality may result in immediate termination of this Agreement and legal action as permitted by law.
+2. Scope of Testing
+The Tester agrees to evaluate the Product using NexaTalent’s designated platforms (e.g., Streamlit app, Google Sheets, email feedback forms). Testing includes:
+- Completing assigned tasks as instructed.
+- Logging and documenting identified issues.
+- Providing structured feedback via feedback forms, discussions, or debrief sessions.
+3. Data Handling & Privacy
+NexaTalent is committed to responsible data management and Tester privacy:
+- Tester feedback will be anonymized before being included in reports or presentations.
+- Personal information required for testing will be minimized and stored securely.
+- While NexaTalent takes reasonable precautions to protect data, the company is not liable for unintended data breaches or cybersecurity incidents.
+4. No Compensation
+The Tester acknowledges that participation is voluntary and that they will not receive financial compensation for any activities related to the Testing Session, including past, current, or future testing engagements.
+5. Limitations of Liability
+The Product is provided "as is" and may contain bugs, incomplete features, or unexpected performance issues.
+NexaTalent is not responsible for any damage to the Tester’s device, loss of data, or other issues resulting from participation in testing.
+NexaTalent, its employees, officers, and affiliates are not liable for any damages resulting from unforeseen data breaches or technical failures.
+6. Termination
+Either party may terminate this Agreement with written notice.
+Upon termination, the Tester must return or destroy all confidential materials related to the Product as directed by NexaTalent.
+Even after termination, the Tester remains bound by the three (3)-year confidentiality obligation outlined in Section 1.
+7. Dispute Resolution
+Any disputes arising under this Agreement will be resolved through binding arbitration in Washington State under the rules of the American Arbitration Association.
+Both parties waive any rights to litigate in court, except to enforce arbitration awards or seek injunctive relief.
+
+SECTION 2: MUTUAL NON-DISCLOSURE AGREEMENT
+This section ensures that confidential and proprietary information shared between NexaTalent and the Tester remains protected and undisclosed to third parties.
+1. Definition of Confidential Information
+"Confidential Information" includes, but is not limited to:
+- Business, financial, customer, product, and service details.
+- Intellectual property, trade secrets, inventions, and methodologies.
+- Any documentation, schematics, prototypes, test results, or discussions related to NexaTalent’s operations or products.
+- Any third-party confidential information provided by NexaTalent.
+2. Exclusions from Confidential Information
+Confidential Information does not include information that:
+- Becomes publicly available without violation of this Agreement.
+- Is legally obtained from a third party without confidentiality obligations.
+- Was already known by the Tester prior to disclosure, as evidenced by written records.
+- Is independently developed by the Tester without using NexaTalent’s confidential information.
+3. Tester Obligations
+The Tester agrees to:
+- Maintain strict confidentiality regarding all disclosed information.
+- Use the information solely for testing purposes and not for any personal, competitive, or commercial advantage.
+- Not disclose, share, or distribute any confidential materials to third parties without NexaTalent’s prior written consent.
+4. Required Disclosure by Law
+If legally compelled to disclose confidential information, the Tester must:
+- Provide prompt written notice to NexaTalent.
+- Limit disclosure to only the portion required by law.
+5. Return or Destruction of Confidential Information
+Upon termination of this Agreement, or at NexaTalent’s request, the Tester must:
+- Return or permanently delete all confidential information in their possession.
+- Provide written certification confirming destruction of all copies.
+6. Term & Survival
+This Agreement remains in effect for three (3) years from the date of acceptance.
+Confidentiality obligations related to trade secrets continue indefinitely.
+7. Governing Law & Dispute Resolution
+This Agreement is governed by the laws of Washington State.
+Any disputes will be resolved through binding arbitration in Seattle, WA under the American Arbitration Association.
+
+ACKNOWLEDGMENT & ACCEPTANCE
+By clicking "I understand and accept", you acknowledge that:
+ ✅ You have read, understood, and agree to the Early Qualitative Testing Agreement and the Mutual Non-D
+   isclosure Agreement.
+ ✅ You accept all terms, including confidentiality, liability limitations, and dispute resolution.
+ ✅ You understand that NexaTalent reserves the right to enforce this Agreement, including through legal means if necessary.
+"""
+        
+        # Display the user agreement in a scrollable, read-only text area.
+        st.text_area("User Agreement", value=user_agreement_text, height=200, disabled=True)
+        
+        # Email input field.
+        email = st.text_input("Enter your email address:")
+        
+        # Button is disabled until an email is entered.
+        if st.button("I understand and accept", disabled=(not email.strip())):
+            st.session_state.consent = True
+            log_consent(email)
+            consent_container.empty()  # Clear the consent UI.
+    
+    if not st.session_state.consent:
+        st.stop()  # Prevent further execution until consent is given.
+
+###############################################################################
 # Updated Logging Function with New WebApp URL
 ###############################################################################
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwiUbnbUTBcQX1Gxjxh39Xp0_wS9z5PZ6U8EmZk7H9z4YyEAGwcjAV4f1xmeBAceNM/exec"
@@ -140,7 +274,6 @@ Hiring team members and hiring managers.
 [task_format]
 """
 
-
 TASK_FORMAT_DEFINITIONS = {
     "Write a job description": """
 Output should contain the following headings: “About Us, Job Summary, Key Responsibilities, Requirements, Qualifications, Key Skills, Benefits, Salary, and Work Environment”. 
@@ -217,7 +350,6 @@ Ensure that your evaluation is strictly aligned with the quality standards outli
 """
 }
 
-
 ###############################################################################
 # Streamlit UI and Integration
 ###############################################################################
@@ -234,9 +366,21 @@ if input_method == "Paste text":
 else:
     uploaded_file = st.file_uploader("Upload a text file", type=["txt", "md", "rtf", "docx", "pdf"])
     if uploaded_file is not None:
+        # Handle only plain text files in this example. For other formats, additional parsing is needed.
         if uploaded_file.type == "text/plain":
             string_data = StringIO(uploaded_file.getvalue().decode("utf-8"))
             user_notes = string_data.read()
+        else:
+            st.error("Currently, only plain text files are supported. Please upload a .txt file.")
+
+# Cached function to load rubric file so that it isn't re-read on every run
+@st.cache_data
+def load_rubric(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as file:
+            return file.read()
+    else:
+        return None
 
 # Generation process
 if st.button("Generate"):
@@ -260,12 +404,10 @@ if st.button("Generate"):
                 "Evaluate candidate responses": "NexaTalent Rubric for Candidate Responses.txt"
             }
             rubric_file_path = os.path.join("reference_materials", rubric_mapping.get(task, ""))
-            rubric_context = ""
-            if os.path.exists(rubric_file_path):
-                with open(rubric_file_path, "r", encoding="utf-8") as file:
-                    rubric_context = file.read()
-            else:
+            rubric_context = load_rubric(rubric_file_path)
+            if rubric_context is None:
                 st.warning(f"Rubric file not found for task: {task}")
+                rubric_context = ""  # Allow processing to continue if desired
             
             final_instructions = (
                 "Rubric Context:\n" + rubric_context + "\n\n" +
@@ -302,25 +444,23 @@ if st.button("Generate"):
                 
                 # Log everything in one call (without feedback for now)
                 log_to_google_sheets(task, user_notes, final_response,
-                                    prompt_tokens=prompt_tokens,
-                                    completion_tokens=completion_tokens,
-                                    total_tokens=total_tokens)
+                                     prompt_tokens=prompt_tokens,
+                                     completion_tokens=completion_tokens,
+                                     total_tokens=total_tokens)
                 
-                # Parse the {model_judgement} value if present
+                # --- Improved parsing of the model judgement value using regex ---
                 model_judgement_value = None
-                if "{model_judgement}" in final_response:
-                    try:
-                        judgement_line = final_response.split("{model_judgement}")[1].split("\n")[0].strip()
-                        model_judgement_value = int(judgement_line)
-                    except ValueError:
-                        st.error("Unable to parse {model_judgement} value as an integer.")
-                        st.stop()
+                judgement_match = re.search(r"\{model_judgement\}[:\s]*([0-5])", final_response)
+                if judgement_match:
+                    model_judgement_value = int(judgement_match.group(1))
                 
                 if model_judgement_value is not None and model_judgement_value <= 2:
-                    st.warning("It looks like you may be trying to complete a task that this tool hasn’t yet been fine-tuned to handle. "
-                            "At NexaTalent, we are committed to delivering tools that meet or exceed our rigorous quality standards. "
-                            "This commitment drives our mission to improve the quality of organizations through technology and data-driven insights.\n\n"
-                            "If you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com.")
+                    st.warning(
+                        "It looks like you may be trying to complete a task that this tool hasn’t yet been fine-tuned to handle. "
+                        "At NexaTalent, we are committed to delivering tools that meet or exceed our rigorous quality standards. "
+                        "This commitment drives our mission to improve the quality of organizations through technology and data-driven insights.\n\n"
+                        "If you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com."
+                    )
                 else:
                     # Clean up the response for display purposes
                     if "**" in final_response:

@@ -46,97 +46,95 @@ def log_consent(email):
 if "consent" not in st.session_state:
     st.session_state.consent = False
 
-# Ensure consent is tracked in session state.
-if "consent" not in st.session_state:
-    st.session_state.consent = False
-
 # Display consent UI if consent is not yet given.
 if not st.session_state.consent:
     consent_container = st.empty()  # Create a container for the consent UI.
     with consent_container.container():
         st.markdown("## NexaTalent Consent Agreement")
-        st.write('This versions of the NexaTalent app is currently in a testing phase. By entering your email and pressing **I understand and accept** you agree to the following:')
+        st.write('This version of the NexaTalent app is currently in a testing phase. By entering your email and pressing **I understand and accept** you agree to the following:')
+
+        # Generate today's date in a readable format.
+        today = datetime.now().strftime("%B %d, %Y")
         
-        # Detailed user agreement text.
-        user_agreement_text = """EARLY QUALITATIVE TESTING AGREEMENT & MUTUAL NON-DISCLOSURE AGREEMENT
-Effective Date: The date of acceptance below.
+        # Detailed user agreement text with a dynamic effective date.
+        user_agreement_text = f"""EARLY QUALITATIVE TESTING AGREEMENT & MUTUAL NON-DISCLOSURE AGREEMENT
+Effective Date: {today}
 Parties: This agreement is between NexaTalent ("Provider") and the individual accepting these terms ("Tester").
 This Agreement sets forth the terms under which the Tester is granted access to NexaTalent’s pre-alpha product for qualitative testing while ensuring confidentiality and proper handling of proprietary information.
 
 SECTION 1: EARLY QUALITATIVE TESTING AGREEMENT
 This section governs the Tester’s participation in NexaTalent’s pre-alpha testing phase, where feedback will be collected to refine product usability, functionality, and experience.
 1. Confidentiality
-The Tester acknowledges that all materials, discussions, prototypes, designs, test data, feedback, documentation, and any related information provided before, during, or after the testing phase are confidential and proprietary to NexaTalent.
-Tester agrees not to share, copy, disclose, or distribute any information related to the Testing Session, including but not limited to screenshots, descriptions, recordings, discussions, or findings.
-Any and all insights, feedback, reports, or analysis generated during testing become the exclusive intellectual property of NexaTalent.
-These confidentiality obligations remain in effect for three (3) years from the date of acceptance or until NexaTalent publicly releases the Product, whichever is later.
-Any breach of confidentiality may result in immediate termination of this Agreement and legal action as permitted by law.
+   The Tester acknowledges that all materials, discussions, prototypes, designs, test data, feedback, documentation, and any related information provided before, during, or after the testing phase are confidential and proprietary to NexaTalent.
+   Tester agrees not to share, copy, disclose, or distribute any information related to the Testing Session, including but not limited to screenshots, descriptions, recordings, discussions, or findings.
+   Any and all insights, feedback, reports, or analysis generated during testing become the exclusive intellectual property of NexaTalent.
+   These confidentiality obligations remain in effect for three (3) years from the date of acceptance or until NexaTalent publicly releases the Product, whichever is later.
+   Any breach of confidentiality may result in immediate termination of this Agreement and legal action as permitted by law.
 2. Scope of Testing
-The Tester agrees to evaluate the Product using NexaTalent’s designated platforms (e.g., Streamlit app, Google Sheets, email feedback forms). Testing includes:
-- Completing assigned tasks as instructed.
-- Logging and documenting identified issues.
-- Providing structured feedback via feedback forms, discussions, or debrief sessions.
+   The Tester agrees to evaluate the Product using NexaTalent’s designated platforms (e.g., Streamlit app, Google Sheets, email feedback forms). Testing includes:
+   - Completing assigned tasks as instructed.
+   - Logging and documenting identified issues.
+   - Providing structured feedback via feedback forms, discussions, or debrief sessions.
 3. Data Handling & Privacy
-NexaTalent is committed to responsible data management and Tester privacy:
-- Tester feedback will be anonymized before being included in reports or presentations.
-- Personal information required for testing will be minimized and stored securely.
-- While NexaTalent takes reasonable precautions to protect data, the company is not liable for unintended data breaches or cybersecurity incidents.
+   NexaTalent is committed to responsible data management and Tester privacy:
+   - Tester feedback will be anonymized before being included in reports or presentations.
+   - Personal information required for testing will be minimized and stored securely.
+   - While NexaTalent takes reasonable precautions to protect data, the company is not liable for unintended data breaches or cybersecurity incidents.
 4. No Compensation
-The Tester acknowledges that participation is voluntary and that they will not receive financial compensation for any activities related to the Testing Session, including past, current, or future testing engagements.
+   The Tester acknowledges that participation is voluntary and that they will not receive financial compensation for any activities related to the Testing Session, including past, current, or future testing engagements.
 5. Limitations of Liability
-The Product is provided "as is" and may contain bugs, incomplete features, or unexpected performance issues.
-NexaTalent is not responsible for any damage to the Tester’s device, loss of data, or other issues resulting from participation in testing.
-NexaTalent, its employees, officers, and affiliates are not liable for any damages resulting from unforeseen data breaches or technical failures.
+   The Product is provided "as is" and may contain bugs, incomplete features, or unexpected performance issues.
+   NexaTalent is not responsible for any damage to the Tester’s device, loss of data, or other issues resulting from participation in testing.
+   NexaTalent, its employees, officers, and affiliates are not liable for any damages resulting from unforeseen data breaches or technical failures.
 6. Termination
-Either party may terminate this Agreement with written notice.
-Upon termination, the Tester must return or destroy all confidential materials related to the Product as directed by NexaTalent.
-Even after termination, the Tester remains bound by the three (3)-year confidentiality obligation outlined in Section 1.
+   Either party may terminate this Agreement with written notice.
+   Upon termination, the Tester must return or destroy all confidential materials related to the Product as directed by NexaTalent.
+   Even after termination, the Tester remains bound by the three (3)-year confidentiality obligation outlined in Section 1.
 7. Dispute Resolution
-Any disputes arising under this Agreement will be resolved through binding arbitration in Washington State under the rules of the American Arbitration Association.
-Both parties waive any rights to litigate in court, except to enforce arbitration awards or seek injunctive relief.
+   Any disputes arising under this Agreement will be resolved through binding arbitration in Washington State under the rules of the American Arbitration Association.
+   Both parties waive any rights to litigate in court, except to enforce arbitration awards or seek injunctive relief.
 
 SECTION 2: MUTUAL NON-DISCLOSURE AGREEMENT
 This section ensures that confidential and proprietary information shared between NexaTalent and the Tester remains protected and undisclosed to third parties.
 1. Definition of Confidential Information
-"Confidential Information" includes, but is not limited to:
-- Business, financial, customer, product, and service details.
-- Intellectual property, trade secrets, inventions, and methodologies.
-- Any documentation, schematics, prototypes, test results, or discussions related to NexaTalent’s operations or products.
-- Any third-party confidential information provided by NexaTalent.
+   "Confidential Information" includes, but is not limited to:
+   - Business, financial, customer, product, and service details.
+   - Intellectual property, trade secrets, inventions, and methodologies.
+   - Any documentation, schematics, prototypes, test results, or discussions related to NexaTalent’s operations or products.
+   - Any third-party confidential information provided by NexaTalent.
 2. Exclusions from Confidential Information
-Confidential Information does not include information that:
-- Becomes publicly available without violation of this Agreement.
-- Is legally obtained from a third party without confidentiality obligations.
-- Was already known by the Tester prior to disclosure, as evidenced by written records.
-- Is independently developed by the Tester without using NexaTalent’s confidential information.
+   Confidential Information does not include information that:
+   - Becomes publicly available without violation of this Agreement.
+   - Is legally obtained from a third party without confidentiality obligations.
+   - Was already known by the Tester prior to disclosure, as evidenced by written records.
+   - Is independently developed by the Tester without using NexaTalent’s confidential information.
 3. Tester Obligations
-The Tester agrees to:
-- Maintain strict confidentiality regarding all disclosed information.
-- Use the information solely for testing purposes and not for any personal, competitive, or commercial advantage.
-- Not disclose, share, or distribute any confidential materials to third parties without NexaTalent’s prior written consent.
+   The Tester agrees to:
+   - Maintain strict confidentiality regarding all disclosed information.
+   - Use the information solely for testing purposes and not for any personal, competitive, or commercial advantage.
+   - Not disclose, share, or distribute any confidential materials to third parties without NexaTalent’s prior written consent.
 4. Required Disclosure by Law
-If legally compelled to disclose confidential information, the Tester must:
-- Provide prompt written notice to NexaTalent.
-- Limit disclosure to only the portion required by law.
+   If legally compelled to disclose confidential information, the Tester must:
+   - Provide prompt written notice to NexaTalent.
+   - Limit disclosure to only the portion required by law.
 5. Return or Destruction of Confidential Information
-Upon termination of this Agreement, or at NexaTalent’s request, the Tester must:
-- Return or permanently delete all confidential information in their possession.
-- Provide written certification confirming destruction of all copies.
+   Upon termination of this Agreement, or at NexaTalent’s request, the Tester must:
+   - Return or permanently delete all confidential information in their possession.
+   - Provide written certification confirming destruction of all copies.
 6. Term & Survival
-This Agreement remains in effect for three (3) years from the date of acceptance.
-Confidentiality obligations related to trade secrets continue indefinitely.
+   This Agreement remains in effect for three (3) years from the date of acceptance.
+   Confidentiality obligations related to trade secrets continue indefinitely.
 7. Governing Law & Dispute Resolution
-This Agreement is governed by the laws of Washington State.
-Any disputes will be resolved through binding arbitration in Seattle, WA under the American Arbitration Association.
+   This Agreement is governed by the laws of Washington State.
+   Any disputes will be resolved through binding arbitration in Seattle, WA under the American Arbitration Association.
 
 ACKNOWLEDGMENT & ACCEPTANCE
 By clicking "I understand and accept", you acknowledge that:
- ✅ You have read, understood, and agree to the Early Qualitative Testing Agreement and the Mutual Non-D
-   isclosure Agreement.
+ ✅ You have read, understood, and agree to the Early Qualitative Testing Agreement and the Mutual Non-Disclosure Agreement.
  ✅ You accept all terms, including confidentiality, liability limitations, and dispute resolution.
  ✅ You understand that NexaTalent reserves the right to enforce this Agreement, including through legal means if necessary.
 """
-        
+
         # Display the user agreement in a scrollable, read-only text area.
         st.text_area("User Agreement", value=user_agreement_text, height=200, disabled=True)
         

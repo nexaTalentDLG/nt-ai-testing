@@ -247,6 +247,28 @@ def evaluate_content(generated_output, rubric_context):
         return None, ""
 
 ###############################################################################
+# Extract Model 
+###############################################################################
+
+def extract_evaluation_parts(text):
+    """
+    Extracts user_summary, model_comparison, and model_judgement from the given text.
+    Assumes that the text contains lines like:
+      >>User Summary: <content>
+      >>Model Comparison: <content>
+      >>Model Judgement: <content>
+    """
+    user_summary_match = re.search(r">>User Summary:\s*(.*)", text)
+    model_comparison_match = re.search(r">>Model Comparison:\s*(.*)", text)
+    model_judgement_match = re.search(r">>Model Judgement:\s*(.*)", text)
+    
+    user_summary = user_summary_match.group(1).strip() if user_summary_match else ""
+    model_comparison = model_comparison_match.group(1).strip() if model_comparison_match else ""
+    model_judgement = model_judgement_match.group(1).strip() if model_judgement_match else ""
+    
+    return user_summary, model_comparison, model_judgement
+
+###############################################################################
 # Mappings and Helper Texts
 ###############################################################################
 ASSISTANT_IDS = {
@@ -333,10 +355,9 @@ Maintain an informative and professional tone throughout your output.
 Hiring team members and hiring managers.
 
 # RESPONSE #
->>{user_summary}
->>{model_summary}
->>{model_comparison}
->>{model_judgement}
+>>User Summary: <Insert user summary here>
+>>Model Comparison: <Insert model comparison here>
+>>Model Judgement: <Insert model judgement here>
 [task_format]
 """
 
@@ -508,10 +529,12 @@ if st.button("Generate"):
                                     completion_tokens=completion_tokens,
                                     total_tokens=total_tokens)
                 
+                #Extract 
+                # ... after generating refined_output
+                user_summary, model_comparison, model_judgement = extract_evaluation_parts(initial_output)
+                
                 # Step 2: Evaluate the initial output using Gemini 2.0.
                 score, evaluator_feedback = evaluate_content(initial_output, rubric_context)
-                log_to_google_sheets(task, initial_output, evaluator_feedback,
-                                    feedback=f"Evaluator Score: {score}")
                 
                 # Step 3: Refine the content using evaluator feedback.
                 refinement_instructions = (
@@ -529,8 +552,22 @@ if st.button("Generate"):
                 )
                 refined_output = refined_response.choices[0].message.content.strip()
                 
-                log_to_google_sheets(task, initial_output, refined_output,
-                                    feedback=f"Refinement based on evaluator score: {score}")
+                log_to_google_sheets(
+                    tool_selection=task,
+                    user_input=user_notes,
+                    initial_output=initial_output,
+                    evaluator_feedback=evaluator_feedback,
+                    evaluator_score=score,
+                    refined_output=refined_output,
+                    feedback=f"Refinement based on evaluator score: {score}",
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
+                    user_summary=user_summary,         # if available
+                    model_comparison=model_comparison,   # if available
+                    model_judgement=model_judgement      # if available
+                )
+
                 
                 # Step 4: Check the refined output for model judgement value.
                 model_judgement_value = None

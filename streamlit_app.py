@@ -8,7 +8,13 @@ from dotenv import load_dotenv
 import re
 from datetime import datetime
 from zoneinfo import ZoneInfo  # For timezone support
-import google.generativeai as genai  # Add this import at the top with other imports
+
+# Try importing google.generativeai with error handling
+try:
+    import google.generativeai as genai
+except ImportError:
+    st.error("Required package 'google-generativeai' is not installed. Please install it using: pip install google-generativeai")
+    st.stop()
 
 # Load environment variables
 load_dotenv()
@@ -53,13 +59,18 @@ def log_consent(email):
     data = {
         "timestamp": timestamp,
         "email": email,
-        "consent": "I agree"
+        "consent": "I agree",
+        "ip_address": ""
     }
     try:
         response = requests.post(CONSENT_TRACKER_URL, json=data)
-        return response.text
+        if response.status_code == 200:
+            return response.text
+        else:
+            print(f"Failed to log consent. Status code: {response.status_code}")  # Log to console
+            return None
     except Exception as e:
-        st.error(f"Consent logging error: {e}")
+        print(f"Consent logging error: {str(e)}")  # Log to console
         return None
 
 # Ensure consent is tracked in session state.
@@ -160,9 +171,9 @@ By clicking "I understand and accept", you acknowledge that:
         
         # Button is disabled until an email is entered.
         if st.button("I understand and accept", disabled=(not email.strip())):
-            st.session_state.consent = True
-            log_consent(email)
-            consent_container.empty()
+            if log_consent(email) is not None:
+                st.session_state.consent = True
+                consent_container.empty()
     
     if not st.session_state.consent:
         st.stop()
@@ -224,19 +235,23 @@ def evaluate_content(generated_output, rubric_context):
     Sends the generated output and rubric context to the evaluator model (Gemini)
     and returns the evaluation feedback and score.
     """
-    # Try to get API key from multiple sources
-    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")  # Try environment variable
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
     
     if not GOOGLE_API_KEY and hasattr(st.secrets, "GOOGLE_API_KEY"):
-        GOOGLE_API_KEY = st.secrets.GOOGLE_API_KEY  # Try Streamlit secrets
+        GOOGLE_API_KEY = st.secrets.GOOGLE_API_KEY
         
     if not GOOGLE_API_KEY:
-        # Debug output to see what environment variables are available
-        st.error("Google API key not found. Available environment variables:")
-        st.write({k: v for k, v in os.environ.items() if not k.startswith('_')})
+        print("Google API key not found.")  # Log to console
         return None, ""
     
     genai.configure(api_key=GOOGLE_API_KEY)
+    
+    generation_config = {
+        "temperature": 0.7,
+        "top_p": 1,
+        "top_k": 1,
+        "max_output_tokens": 2048,
+    }
     
     evaluator_prompt = (
         "Using the following rubric, evaluate the generated content below. "
@@ -247,20 +262,34 @@ def evaluate_content(generated_output, rubric_context):
     )
     
     try:
-        # Initialize Gemini Pro model
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel(
+            model_name='gemini-2.0-flash',
+            generation_config=generation_config
+        )
         
-        # Generate response
         response = model.generate_content(evaluator_prompt)
         
+        if not response.text:
+            print("Empty response from Gemini API")  # Log to console
+            return None, ""
+            
         evaluator_text = response.text.strip()
         score_match = re.search(r"Score[:\s]*(\d)", evaluator_text)
         score = int(score_match.group(1)) if score_match else None
         
+        if score is None:
+            print("Could not extract score from evaluator response")  # Log to console
+            
         return score, evaluator_text
         
     except Exception as e:
-        st.error(f"Evaluator error: {e}")
+        print(f"Evaluator error: {str(e)}")  # Log to console
+        print("Full error details:", e)  # Log to console
+        try:
+            available_models = [m.name for m in genai.list_models()]
+            print("Available models:", available_models)  # Log to console
+        except Exception as list_error:
+            print(f"Error listing models: {str(list_error)}")  # Log to console
         return None, ""
 
 ###############################################################################
@@ -517,7 +546,7 @@ if st.button("Generate"):
                 .replace("[confidentiality_message]", "It looks like you may be trying to complete a task that this tool hasn't yet been fine-tuned to handle. At NexaTalent, we are committed to delivering tools that meet or exceed our rigorous quality standards. This commitment drives our mission to improve the quality of organizations through technology and data-driven insights.\n\nIf you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com.")
                 + "\n\n"
                 "# ADDITIONAL NOTE #\n"
-                "Only provide the final output per the #RESPONSE# section. Do not include any chain-of-thought, steps, or internal reasoning."
+                "Only provide the final output per the #RESPONSE# section. Do not include any chain-of-thought, steps, or internal reasoning. Do not include your own evaluations of your work in the final output. Do not indicate that the final version you generate has been revised or adapated based on feedback"
             )
             
             try:
@@ -551,7 +580,9 @@ if st.button("Generate"):
                 refinement_instructions = (
                     f"The following content was generated:\n{initial_output}\n\n"
                     f"The evaluator provided the following feedback:\n{evaluator_feedback}\n\n"
-                    "Please refine the content based on the feedback."
+                    f"Please refine the content based on the feedback and ensure it follows this format:\n\n"
+                    f"{TASK_FORMAT_DEFINITIONS[task]}\n\n"
+                    "Important: Do not include any evaluation criteria, refinement notes, or improvement suggestions in the final output."
                 )
                 refined_response = openai.chat.completions.create(
                     model="gpt-4o-mini",
@@ -594,23 +625,30 @@ if st.button("Generate"):
                         "If you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com."
                     )
                 else:
-                    # Clean the output by removing evaluation content
-                    clean_output = refined_output
-                    
-                    # Remove evaluation summary section
-                    if "### Evaluation Summary" in clean_output:
-                        clean_output = clean_output.split("### Evaluation Summary")[0]
-                    
-                    # Remove any trailing evaluation content
-                    if "---" in clean_output:
-                        clean_output = clean_output.split("---")[0]
-                    
-                    # Remove any trailing whitespace and newlines
-                    clean_output = clean_output.strip()
-                    
-                    # Display the cleaned output
-                    st.text_area("Generated Content", value=clean_output, height=400)
+                    # Display the output directly
+                    st.text_area("Generated Content", value=refined_output.strip(), height=400)
 
             except Exception as e:
                 st.error(f"An error occurred: {e}")
 
+def verify_model_availability():
+    """Verify that the required model is available"""
+    try:
+        available_models = [m.name for m in genai.list_models()]
+        required_model = 'gemini-2.0-flash'
+        
+        if required_model not in available_models:
+            # Log error to console instead of showing to user
+            print(f"Required model '{required_model}' is not available. Using default model 'gemini-pro' instead.")
+            return 'gemini-pro'
+        return required_model
+    except Exception as e:
+        print(f"Error verifying model availability: {str(e)}")  # Log to console
+        return 'gemini-pro'
+
+# Remove the test button from UI
+# if st.button("Test Consent Webhook"):
+#     test_consent_webhook()
+
+# Remove model verification from UI display
+model_to_use = verify_model_availability()

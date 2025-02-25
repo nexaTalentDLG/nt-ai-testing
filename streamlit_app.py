@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import re
 from datetime import datetime
 from zoneinfo import ZoneInfo  # For timezone support
+import google.generativeai as genai  # Add this import at the top with other imports
 
 # Load environment variables
 load_dotenv()
@@ -207,9 +208,17 @@ def log_to_google_sheets(
 
 def evaluate_content(generated_output, rubric_context):
     """
-    Sends the generated output and rubric context to the evaluator model (Gemini 2.0)
+    Sends the generated output and rubric context to the evaluator model (Gemini)
     and returns the evaluation feedback and score.
     """
+    # Configure the Gemini API
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    if not GOOGLE_API_KEY:
+        st.error("Google API key not found. Please check your .env file.")
+        return None, ""
+        
+    genai.configure(api_key=GOOGLE_API_KEY)
+    
     evaluator_prompt = (
         "Using the following rubric, evaluate the generated content below. "
         "Return a numerical score (0-5) and provide detailed feedback for improvements.\n\n"
@@ -218,30 +227,19 @@ def evaluate_content(generated_output, rubric_context):
         "Evaluator Response (Score and Feedback):"
     )
     
-    # Replace with the actual API endpoint for Gemini 2.0
-    evaluator_api_endpoint = "https://api.gemini.example.com/v1/flash-thinking"  # (Example endpoint)
-    evaluator_api_key = os.getenv("GEMINI_API_KEY")
-    headers = {"Authorization": f"Bearer {evaluator_api_key}"}
-    
-    payload = {
-        "prompt": evaluator_prompt,
-        "model": "gemini-2.0-flash-thinking-experimental-01-21",
-        "temperature": 0.5,
-        "max_tokens": 300
-    }
-    
     try:
-        response = requests.post(evaluator_api_endpoint, headers=headers, json=payload)
-        response_data = response.json()
-        score = None
-        feedback = ""
-        if "choices" in response_data and response_data["choices"]:
-            evaluator_text = response_data["choices"][0]["text"].strip()
-            score_match = re.search(r"Score[:\s]*(\d)", evaluator_text)
-            if score_match:
-                score = int(score_match.group(1))
-            feedback = evaluator_text
-        return score, feedback
+        # Initialize Gemini Pro model
+        model = genai.GenerativeModel('gemini-pro')
+        
+        # Generate response
+        response = model.generate_content(evaluator_prompt)
+        
+        evaluator_text = response.text.strip()
+        score_match = re.search(r"Score[:\s]*(\d)", evaluator_text)
+        score = int(score_match.group(1)) if score_match else None
+        
+        return score, evaluator_text
+        
     except Exception as e:
         st.error(f"Evaluator error: {e}")
         return None, ""
@@ -527,7 +525,7 @@ if st.button("Generate"):
                 # Extract evaluation parts
                 user_summary, model_comparison, model_judgement = extract_evaluation_parts(initial_output)
                 
-                # Step 2: Evaluate the initial output using Gemini 2.0.
+                # Step 2: Evaluate the initial output using Gemini.
                 score, evaluator_feedback = evaluate_content(initial_output, rubric_context)
                 
                 # Step 3: Refine the content using evaluator feedback.

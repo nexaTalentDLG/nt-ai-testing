@@ -12,6 +12,19 @@ import google.generativeai as genai  # Add this import at the top with other imp
 
 # Load environment variables
 load_dotenv()
+
+# Debug environment variables loading
+google_api_key = os.getenv("GOOGLE_API_KEY")
+if not google_api_key:
+    st.write("Loading from .env failed. Checking Streamlit secrets...")
+    if hasattr(st.secrets, "GOOGLE_API_KEY"):
+        google_api_key = st.secrets.GOOGLE_API_KEY
+        os.environ["GOOGLE_API_KEY"] = google_api_key  # Set it in environment variables
+
+if not google_api_key:
+    st.error("Google API key not found in either .env or Streamlit secrets.")
+    st.stop()
+
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     st.error("API key not found. Please check your .env file.")
@@ -211,12 +224,18 @@ def evaluate_content(generated_output, rubric_context):
     Sends the generated output and rubric context to the evaluator model (Gemini)
     and returns the evaluation feedback and score.
     """
-    # Configure the Gemini API
-    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-    if not GOOGLE_API_KEY:
-        st.error("Google API key not found. Please check your .env file.")
-        return None, ""
+    # Try to get API key from multiple sources
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")  # Try environment variable
+    
+    if not GOOGLE_API_KEY and hasattr(st.secrets, "GOOGLE_API_KEY"):
+        GOOGLE_API_KEY = st.secrets.GOOGLE_API_KEY  # Try Streamlit secrets
         
+    if not GOOGLE_API_KEY:
+        # Debug output to see what environment variables are available
+        st.error("Google API key not found. Available environment variables:")
+        st.write({k: v for k, v in os.environ.items() if not k.startswith('_')})
+        return None, ""
+    
     genai.configure(api_key=GOOGLE_API_KEY)
     
     evaluator_prompt = (

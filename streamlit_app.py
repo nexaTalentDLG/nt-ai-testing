@@ -156,31 +156,95 @@ By clicking "I understand and accept", you acknowledge that:
 ###############################################################################
 # Updated Logging Function with New WebApp URL (Main Logger)
 ###############################################################################
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycby6Lz_D8QN2p-RKJVr3UMiYksO0xELt_5FTeq4lQ9HdBIu3nxVWCfYu0OG4aOYu0Rq5/exec"
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbx2DqMxWIiYvrdNQocVb3m_vTDxSd657a1CQdUMM3EI1z6HsQkpfcPp8eWREN0P8Bev/exec"
 
-def log_to_google_sheets(tool_selection, user_input, generated_output, feedback=None, 
-                           prompt_tokens=None, completion_tokens=None, total_tokens=None):
+def log_to_google_sheets(
+    tool_selection,
+    user_input,
+    initial_output,
+    evaluator_feedback,
+    evaluator_score,
+    refined_output,
+    feedback=None,
+    prompt_tokens=None,
+    completion_tokens=None,
+    total_tokens=None,
+    user_summary=None,
+    model_comparison=None,
+    model_judgement=None
+):
     """
-    Sends log data (timestamp, tool selection, user input, generated output, feedback,
-    and token usage: prompt_tokens, completion_tokens, total_tokens)
-    to the specified Google Sheet via the provided webhook.
+    Sends log data including initial output, evaluator feedback, evaluator score,
+    refined output, and additional evaluation details (user_summary, model_comparison, model_judgement),
+    along with the original fields, to the specified Google Sheet via the provided webhook.
     """
     timestamp = get_current_timestamp()
     data = {
         "timestamp": timestamp,
         "tool_selection": tool_selection,
         "user_input": user_input,
-        "generated_output": generated_output,
+        "initial_output": initial_output,
+        "evaluator_feedback": evaluator_feedback,
+        "evaluator_score": evaluator_score,
+        "refined_output": refined_output,
         "feedback": feedback if feedback is not None else "",
         "prompt_tokens": prompt_tokens if prompt_tokens is not None else "",
         "completion_tokens": completion_tokens if completion_tokens is not None else "",
-        "total_tokens": total_tokens if total_tokens is not None else ""
+        "total_tokens": total_tokens if total_tokens is not None else "",
+        "user_summary": user_summary if user_summary is not None else "",
+        "model_comparison": model_comparison if model_comparison is not None else "",
+        "model_judgement": model_judgement if model_judgement is not None else ""
     }
     try:
         response = requests.post(WEBHOOK_URL, json=data)
         return response.text
     except Exception as e:
         return f"Logging error: {e}"
+
+###############################################################################
+# Evaluator Function
+###############################################################################
+
+def evaluate_content(generated_output, rubric_context):
+    """
+    Sends the generated output and rubric context to the evaluator model (Gemini 2.0)
+    and returns the evaluation feedback and score.
+    """
+    evaluator_prompt = (
+        "Using the following rubric, evaluate the generated content below. "
+        "Return a numerical score (0-5) and provide detailed feedback for improvements.\n\n"
+        f"Rubric Context:\n{rubric_context}\n\n"
+        f"Generated Content:\n{generated_output}\n\n"
+        "Evaluator Response (Score and Feedback):"
+    )
+    
+    # Replace with the actual API endpoint for Gemini 2.0
+    evaluator_api_endpoint = "https://api.gemini.example.com/v1/flash-thinking"  # (Example endpoint)
+    evaluator_api_key = os.getenv("GEMINI_API_KEY")
+    headers = {"Authorization": f"Bearer {evaluator_api_key}"}
+    
+    payload = {
+        "prompt": evaluator_prompt,
+        "model": "gemini-2.0-flash-thinking-experimental-01-21",
+        "temperature": 0.5,
+        "max_tokens": 300
+    }
+    
+    try:
+        response = requests.post(evaluator_api_endpoint, headers=headers, json=payload)
+        response_data = response.json()
+        score = None
+        feedback = ""
+        if "choices" in response_data and response_data["choices"]:
+            evaluator_text = response_data["choices"][0]["text"].strip()
+            score_match = re.search(r"Score[:\s]*(\d)", evaluator_text)
+            if score_match:
+                score = int(score_match.group(1))
+            feedback = evaluator_text
+        return score, feedback
+    except Exception as e:
+        st.error(f"Evaluator error: {e}")
+        return None, ""
 
 ###############################################################################
 # Mappings and Helper Texts
@@ -419,6 +483,7 @@ if st.button("Generate"):
             )
             
             try:
+                # Step 1: Generate initial content.
                 response = openai.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
@@ -428,7 +493,7 @@ if st.button("Generate"):
                     temperature=0.7
                 )
                 
-                final_response = response.choices[0].message.content.strip()
+                initial_output = response.choices[0].message.content.strip()
                 
                 usage = getattr(response, "usage", None)
                 if usage is not None:
@@ -438,13 +503,38 @@ if st.button("Generate"):
                 else:
                     prompt_tokens = completion_tokens = total_tokens = ""
                 
-                log_to_google_sheets(task, user_notes, final_response,
-                                     prompt_tokens=prompt_tokens,
-                                     completion_tokens=completion_tokens,
-                                     total_tokens=total_tokens)
+                log_to_google_sheets(task, user_notes, initial_output,
+                                    prompt_tokens=prompt_tokens,
+                                    completion_tokens=completion_tokens,
+                                    total_tokens=total_tokens)
                 
+                # Step 2: Evaluate the initial output using Gemini 2.0.
+                score, evaluator_feedback = evaluate_content(initial_output, rubric_context)
+                log_to_google_sheets(task, initial_output, evaluator_feedback,
+                                    feedback=f"Evaluator Score: {score}")
+                
+                # Step 3: Refine the content using evaluator feedback.
+                refinement_instructions = (
+                    f"The following content was generated:\n{initial_output}\n\n"
+                    f"The evaluator provided the following feedback:\n{evaluator_feedback}\n\n"
+                    "Please refine the content based on the feedback."
+                )
+                refined_response = openai.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": final_instructions},
+                        {"role": "user", "content": refinement_instructions}
+                    ],
+                    temperature=0.7
+                )
+                refined_output = refined_response.choices[0].message.content.strip()
+                
+                log_to_google_sheets(task, initial_output, refined_output,
+                                    feedback=f"Refinement based on evaluator score: {score}")
+                
+                # Step 4: Check the refined output for model judgement value.
                 model_judgement_value = None
-                judgement_match = re.search(r"\{model_judgement\}[:\s]*([0-5])", final_response)
+                judgement_match = re.search(r"\{model_judgement\}[:\s]*([0-5])", refined_output)
                 if judgement_match:
                     model_judgement_value = int(judgement_match.group(1))
                 
@@ -456,13 +546,14 @@ if st.button("Generate"):
                         "If you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com."
                     )
                 else:
-                    if "**" in final_response:
-                        clean_output = final_response.split("**", 1)[1]
+                    if "**" in refined_output:
+                        clean_output = refined_output.split("**", 1)[1]
                         clean_output = "**" + clean_output
                     else:
-                        clean_output = final_response
+                        clean_output = refined_output
                     
                     st.text_area("Generated Content", value=clean_output.strip(), height=400)
 
             except Exception as e:
                 st.error(f"An error occurred: {e}")
+

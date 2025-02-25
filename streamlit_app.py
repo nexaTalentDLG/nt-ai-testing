@@ -594,13 +594,22 @@ if st.button("Generate"):
                         "If you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com."
                     )
                 else:
-                    if "**" in refined_output:
-                        clean_output = refined_output.split("**", 1)[1]
-                        clean_output = "**" + clean_output
-                    else:
-                        clean_output = refined_output
+                    # Clean the output by removing evaluation content
+                    clean_output = refined_output
                     
-                    st.text_area("Generated Content", value=clean_output.strip(), height=400)
+                    # Remove evaluation summary section
+                    if "### Evaluation Summary" in clean_output:
+                        clean_output = clean_output.split("### Evaluation Summary")[0]
+                    
+                    # Remove any trailing evaluation content
+                    if "---" in clean_output:
+                        clean_output = clean_output.split("---")[0]
+                    
+                    # Remove any trailing whitespace and newlines
+                    clean_output = clean_output.strip()
+                    
+                    # Display the cleaned output
+                    st.text_area("Generated Content", value=clean_output, height=400)
 
             except Exception as e:
                 st.error(f"An error occurred: {e}")

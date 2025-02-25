@@ -7,11 +7,11 @@ from io import StringIO
 from dotenv import load_dotenv
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo  # For timezone support
 
 # Load environment variables
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
-
 if not api_key:
     st.error("API key not found. Please check your .env file.")
     st.stop()
@@ -19,9 +19,15 @@ if not api_key:
 openai.api_key = api_key
 
 ###############################################################################
-# Consent Tracker Setup
+# Helper function for timestamp in PST with 12-hour format
 ###############################################################################
-# Replace with your actual Google Form webhook URL for consent tracking
+def get_current_timestamp():
+    # Returns timestamp in PST (America/Los_Angeles) in 12-hour format with AM/PM
+    return datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%m/%d/%Y %I:%M:%S %p")
+
+###############################################################################
+# Consent Tracker Setup (Updated webhook)
+###############################################################################
 CONSENT_TRACKER_URL = "https://script.google.com/macros/s/AKfycbzZclgguubRjzWSHMWUBiMjWelPqKJ9K-EWZhLDf0unPdeobMYbSS4AW9UJPwCSQF7Q/exec"
 
 def log_consent(email):
@@ -29,7 +35,7 @@ def log_consent(email):
     Logs the timestamp, email address, and consent status ("I agree")
     to a Google Form via the provided webhook.
     """
-    timestamp = datetime.now().isoformat()
+    timestamp = get_current_timestamp()
     data = {
         "timestamp": timestamp,
         "email": email,
@@ -53,10 +59,8 @@ if not st.session_state.consent:
         st.markdown("## NexaTalent Consent Agreement")
         st.write('This version of the NexaTalent app is currently in a testing phase. By entering your email and pressing **I understand and accept** you agree to the following:')
 
-        # Generate today's date in a readable format.
-        today = datetime.now().strftime("%B %d, %Y")
-        
-        # Detailed user agreement text with a dynamic effective date.
+        # Generate today's date in PST in a readable format.
+        today = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%B %d, %Y")
         user_agreement_text = f"""EARLY QUALITATIVE TESTING AGREEMENT & MUTUAL NON-DISCLOSURE AGREEMENT
 Effective Date: {today}
 Parties: This agreement is between NexaTalent ("Provider") and the individual accepting these terms ("Tester").
@@ -130,14 +134,13 @@ This section ensures that confidential and proprietary information shared betwee
 
 ACKNOWLEDGMENT & ACCEPTANCE
 By clicking "I understand and accept", you acknowledge that:
- ✅ You have read, understood, and agree to the Early Qualitative Testing Agreement and the Mutual Non-Disclosure Agreement.
+ ✅ You have read, understood, and agree to the Early Qualitative Testing Agreement and the Mutual Non-DDisclosure Agreement.
  ✅ You accept all terms, including confidentiality, liability limitations, and dispute resolution.
  ✅ You understand that NexaTalent reserves the right to enforce this Agreement, including through legal means if necessary.
 """
-
-        # Display the user agreement in a scrollable, read-only text area.
         st.text_area("User Agreement", value=user_agreement_text, height=200, disabled=True)
-        
+        st.write('Please enter a valid email. This is used for communicating updates and providing support.')
+
         # Email input field.
         email = st.text_input("Enter your email address:")
         
@@ -145,23 +148,24 @@ By clicking "I understand and accept", you acknowledge that:
         if st.button("I understand and accept", disabled=(not email.strip())):
             st.session_state.consent = True
             log_consent(email)
-            consent_container.empty()  # Clear the consent UI.
+            consent_container.empty()
     
     if not st.session_state.consent:
-        st.stop()  # Prevent further execution until consent is given.
+        st.stop()
 
 ###############################################################################
-# Updated Logging Function with New WebApp URL
+# Updated Logging Function with New WebApp URL (Main Logger)
 ###############################################################################
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwiUbnbUTBcQX1Gxjxh39Xp0_wS9z5PZ6U8EmZk7H9z4YyEAGwcjAV4f1xmeBAceNM/exec"
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycby6Lz_D8QN2p-RKJVr3UMiYksO0xELt_5FTeq4lQ9HdBIu3nxVWCfYu0OG4aOYu0Rq5/exec"
 
-def log_to_google_sheets(tool_selection, user_input, generated_output, feedback=None, prompt_tokens=None, completion_tokens=None, total_tokens=None):
+def log_to_google_sheets(tool_selection, user_input, generated_output, feedback=None, 
+                           prompt_tokens=None, completion_tokens=None, total_tokens=None):
     """
     Sends log data (timestamp, tool selection, user input, generated output, feedback,
     and token usage: prompt_tokens, completion_tokens, total_tokens)
     to the specified Google Sheet via the provided webhook.
     """
-    timestamp = datetime.now().isoformat()
+    timestamp = get_current_timestamp()
     data = {
         "timestamp": timestamp,
         "tool_selection": tool_selection,
@@ -326,7 +330,7 @@ Example Output:
 **Question Set**
 Describe a time when you identified and capitalized on a growth opportunity within a Club account, leading to mutual satisfaction and business expansion. How did you approach the partnership? 
 - Follow-up 1: How did you align your strategies with the retailer's objectives to foster a cooperative relationship? 
-- Follow-up 2: Can you share an example of how you handled a disagreement or challenge with a Club partner and turned it into a positive outcome?
+- Follow-up 2: Can you share an example of how you handled a disagreement or challenge with a Club partner and turned it into a positive outcome? 
 
 **Concern** 
 - The candidate exhibits minimal understanding of growth opportunities and partnership dynamics, with vague and unclear responses. They avoid complexities and lack engagement with essential business concepts. They may be suitable for entry-level roles under close supervision and would require significant development to progress in more strategic positions.
@@ -343,7 +347,7 @@ Describe a time when you identified and capitalized on a growth opportunity with
 Output should be a numerical score between 1-5 grading the candidate's overall performance. This should be followed by a justification paragraph. 
 There will also be a score of 1-5 for each individual question with justifications for the scoring.
 For scoring, use the NexaTalent Rubric for Candidate Evaluation to assess and grade responses.
-For justification paragraphs, cite examples from the candidate's response and connect them to the rubric as appropriate.
+For justification paragraphs, cite examples from the candidate's response and connect them to the NexaTalent rubric as appropriate.
 Ensure that your evaluation is strictly aligned with the quality standards outlined in the rubric provided in the context.
 """
 }
@@ -364,14 +368,12 @@ if input_method == "Paste text":
 else:
     uploaded_file = st.file_uploader("Upload a text file", type=["txt", "md", "rtf", "docx", "pdf"])
     if uploaded_file is not None:
-        # Handle only plain text files in this example. For other formats, additional parsing is needed.
         if uploaded_file.type == "text/plain":
             string_data = StringIO(uploaded_file.getvalue().decode("utf-8"))
             user_notes = string_data.read()
         else:
             st.error("Currently, only plain text files are supported. Please upload a .txt file.")
 
-# Cached function to load rubric file so that it isn't re-read on every run
 @st.cache_data
 def load_rubric(file_path):
     if os.path.exists(file_path):
@@ -380,12 +382,10 @@ def load_rubric(file_path):
     else:
         return None
 
-# Generation process
 if st.button("Generate"):
     if not user_notes.strip():
         st.warning("Please provide text or upload a file with valid content.")
     else:
-        # Retrieve task-specific configurations
         assistant_id = ASSISTANT_IDS[task]
         spinner_text = SPINNER_TEXTS[task]
         
@@ -394,7 +394,6 @@ if st.button("Generate"):
             chosen_task_overview = TASK_OVERVIEWS[task]
             chosen_task_look_fors = TASK_LOOK_FORS[task]
 
-            # --- New: Load the appropriate rubric file based on tool selection ---
             rubric_mapping = {
                 "Write a job description": "NexaTalent Rubric for Job Description Evaluation.txt",
                 "Build Interview Questions": "NexaTalent Rubric for Interview Question Generation.txt",
@@ -405,7 +404,7 @@ if st.button("Generate"):
             rubric_context = load_rubric(rubric_file_path)
             if rubric_context is None:
                 st.warning(f"Rubric file not found for task: {task}")
-                rubric_context = ""  # Allow processing to continue if desired
+                rubric_context = ""
             
             final_instructions = (
                 "Rubric Context:\n" + rubric_context + "\n\n" +
@@ -431,7 +430,6 @@ if st.button("Generate"):
                 
                 final_response = response.choices[0].message.content.strip()
                 
-                # Extract token usage if available using attribute access
                 usage = getattr(response, "usage", None)
                 if usage is not None:
                     prompt_tokens = usage.prompt_tokens
@@ -440,13 +438,11 @@ if st.button("Generate"):
                 else:
                     prompt_tokens = completion_tokens = total_tokens = ""
                 
-                # Log everything in one call (without feedback for now)
                 log_to_google_sheets(task, user_notes, final_response,
                                      prompt_tokens=prompt_tokens,
                                      completion_tokens=completion_tokens,
                                      total_tokens=total_tokens)
                 
-                # --- Improved parsing of the model judgement value using regex ---
                 model_judgement_value = None
                 judgement_match = re.search(r"\{model_judgement\}[:\s]*([0-5])", final_response)
                 if judgement_match:
@@ -460,7 +456,6 @@ if st.button("Generate"):
                         "If you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com."
                     )
                 else:
-                    # Clean up the response for display purposes
                     if "**" in final_response:
                         clean_output = final_response.split("**", 1)[1]
                         clean_output = "**" + clean_output

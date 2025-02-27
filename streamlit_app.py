@@ -488,17 +488,99 @@ Ensure that your evaluation is strictly aligned with the quality standards outli
 }
 
 ###############################################################################
+# Expandable Instructions
+###############################################################################
+
+TASK_INSTRUCTIONS = {
+    "Write a job description": """
+We have found that our tools generate the best content when they know more about the specifics you're looking for. Consider using the prompt template below to guide you in creating your materials.
+
+**Role Basics**
+- Title: [job title and level (e.g., Senior Software Engineer)]
+- Company Information: [Company name and description]
+- Location: [work location, including remote options]
+
+**Key Information**
+- Primary Purpose: [brief description of the role's main objective]
+- Must-Have Requirements: [2-3 critical qualifications or skills]
+    """,
+    
+    "Build Interview Questions": """
+We have found that our tools generate the best content when they know more about the specifics you're looking for. Consider using the prompt template below to guide you in creating your materials.
+
+**Role Context**
+- Position: [job title and level]
+- Key Skills: [2-3 most important skills to assess]
+- Experience Level: [entry, mid, senior, etc.]
+
+*>>NexaTip - You can input a job description for a more complete picture of this information*
+
+**Interview Focus**
+- Primary Competencies: [key competencies you want to evaluate]
+- Specific Scenarios: [any particular situations you want to explore]
+    """,
+    
+    "Create response guides": """
+We have found that our tools generate the best content when they know more about the specifics you're looking for. Consider using the prompt template below to guide you in creating your materials.
+
+**Question Context**
+- Interview Questions: [list the questions you need guides for]
+
+**Key Criteria**
+- Success Indicators: [what would make a response strong]
+- Red Flags: [what would make a response concerning]
+
+*>>NexaTip - Adding a job description gives us a better view of the role and how to assess quality responses.*
+    """,
+    
+    "Evaluate candidate responses": """
+We have found that our tools generate the best content when they know more about the specifics you're looking for. Consider using the prompt template below to guide you in creating your materials.
+
+**Context**
+- Role: [position title and level]
+- Questions Asked: [list of questions posed]
+- Candidate Responses: [paste the responses to evaluate]
+
+**Focus Areas**
+- Key Requirements: [critical skills or competencies to assess]
+
+*>>NexaTip - Adding a job description gives us a better view of the role and how to assess quality responses.*
+    """
+}
+
+###############################################################################
 # Streamlit UI and Integration
 ###############################################################################
 st.title("NexaTalent AI")
 st.subheader("Your assistant for generating high-quality hiring content.")
 
-# Task selection and input method
+# Task selection
 task = st.selectbox("Select a task:", list(ASSISTANT_IDS.keys()))
-input_method = st.radio("How would you like to provide additional notes or information?", ("Paste text", "Upload file"))
 
-user_notes = ""
-if input_method == "Paste text":
+# Add the question text
+st.write("How would you like to provide additional notes or information?")
+
+# Create six columns but only use the first two
+col1, col2, col3, col4, col5, col6 = st.columns(6)
+
+# Add buttons in the first two columns
+with col1:
+    if st.button("Paste text", type="primary"):
+        st.session_state.input_method = "paste"
+with col2:
+    if st.button("Upload file"):
+        st.session_state.input_method = "upload"
+
+# Add the instructions expander after the buttons
+with st.expander("Need help getting started?"):
+    st.markdown(TASK_INSTRUCTIONS[task])
+
+# Initialize session state for input method if not exists
+if 'input_method' not in st.session_state:
+    st.session_state.input_method = "paste"  # default to paste
+
+# Show the appropriate input method based on selection
+if st.session_state.input_method == "paste":
     user_notes = st.text_area("Enter additional notes or information:")
 else:
     uploaded_file = st.file_uploader("Upload a text file", type=["txt", "md", "rtf", "docx", "pdf"])

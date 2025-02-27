@@ -9,28 +9,29 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo  # For timezone support
 
-# Try importing google.generativeai with error handling
-try:
-    import google.generativeai as genai
-except ImportError:
-    st.error("Required package 'google-generativeai' is not installed. Please install it using: pip install google-generativeai")
-    st.stop()
+# Comment out Google AI imports since we're not using them currently
+# try:
+#     import google.generativeai as genai
+# except ImportError:
+#     st.error("Required package 'google-generativeai' is not installed. Please install it using: pip install google-generativeai")
+#     st.stop()
 
 # Load environment variables
 load_dotenv()
 
-# Debug environment variables loading
-google_api_key = os.getenv("GOOGLE_API_KEY")
-if not google_api_key:
-    st.write("Loading from .env failed. Checking Streamlit secrets...")
-    if hasattr(st.secrets, "GOOGLE_API_KEY"):
-        google_api_key = st.secrets.GOOGLE_API_KEY
-        os.environ["GOOGLE_API_KEY"] = google_api_key  # Set it in environment variables
+# Remove Google API key loading since we're not using it
+# google_api_key = os.getenv("GOOGLE_API_KEY")
+# if not google_api_key:
+#     st.write("Loading from .env failed. Checking Streamlit secrets...")
+#     if hasattr(st.secrets, "GOOGLE_API_KEY"):
+#         google_api_key = st.secrets.GOOGLE_API_KEY
+#         os.environ["GOOGLE_API_KEY"] = google_api_key
 
-if not google_api_key:
-    st.error("Google API key not found in either .env or Streamlit secrets.")
-    st.stop()
+# if not google_api_key:
+#     st.error("Google API key not found in either .env or Streamlit secrets.")
+#     st.stop()
 
+# Load OpenAI API key
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     st.error("API key not found. Please check your .env file.")

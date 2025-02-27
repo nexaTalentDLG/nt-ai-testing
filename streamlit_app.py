@@ -232,49 +232,40 @@ def log_to_google_sheets(
 
 def evaluate_content(generated_output, rubric_context):
     """
-    Sends the generated output and rubric context to the evaluator model (Gemini)
+    Sends the generated output and rubric context to the evaluator model (OpenAI)
     and returns the evaluation feedback and score.
     """
-    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-    
-    if not GOOGLE_API_KEY and hasattr(st.secrets, "GOOGLE_API_KEY"):
-        GOOGLE_API_KEY = st.secrets.GOOGLE_API_KEY
-        
-    if not GOOGLE_API_KEY:
-        print("Google API key not found.")  # Log to console
-        return None, ""
-    
-    genai.configure(api_key=GOOGLE_API_KEY)
-    
-    generation_config = {
-        "temperature": 0.7,
-        "top_p": 1,
-        "top_k": 1,
-        "max_output_tokens": 2048,
-    }
+    # Comment out Google AI configuration for now
+    # GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    # if not GOOGLE_API_KEY and hasattr(st.secrets, "GOOGLE_API_KEY"):
+    #     GOOGLE_API_KEY = st.secrets.GOOGLE_API_KEY
+    # if not GOOGLE_API_KEY:
+    #     print("Google API key not found.")  # Log to console
+    #     return None, ""
+    # genai.configure(api_key=GOOGLE_API_KEY)
     
     evaluator_prompt = (
-        "Using the following rubric, evaluate the generated content below. "
+        "You are an expert evaluator. Using the following rubric, evaluate the generated content below. "
         "Return a numerical score (0-5) and provide detailed feedback for improvements.\n\n"
         f"Rubric Context:\n{rubric_context}\n\n"
         f"Generated Content:\n{generated_output}\n\n"
-        "Evaluator Response (Score and Feedback):"
+        "Important: Start your response with 'Score: X' where X is your numerical score, "
+        "then provide your detailed feedback."
     )
     
     try:
-        model = genai.GenerativeModel(
-            model_name='gemini-2.0-flash',
-            generation_config=generation_config
+        # Use OpenAI instead of Gemini
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert evaluator focused on providing clear, actionable feedback."},
+                {"role": "user", "content": evaluator_prompt}
+            ],
+            temperature=0.7
         )
         
-        response = model.generate_content(evaluator_prompt)
-        
-        if not response.text:
-            print("Empty response from Gemini API")  # Log to console
-            return None, ""
-            
-        evaluator_text = response.text.strip()
-        score_match = re.search(r"Score[:\s]*(\d)", evaluator_text)
+        evaluator_text = response.choices[0].message.content.strip()
+        score_match = re.search(r"Score:\s*(\d)", evaluator_text)
         score = int(score_match.group(1)) if score_match else None
         
         if score is None:
@@ -284,13 +275,25 @@ def evaluate_content(generated_output, rubric_context):
         
     except Exception as e:
         print(f"Evaluator error: {str(e)}")  # Log to console
-        print("Full error details:", e)  # Log to console
-        try:
-            available_models = [m.name for m in genai.list_models()]
-            print("Available models:", available_models)  # Log to console
-        except Exception as list_error:
-            print(f"Error listing models: {str(list_error)}")  # Log to console
         return None, ""
+
+    # Keep Google AI code commented out for future use
+    # try:
+    #     model = genai.GenerativeModel(
+    #         model_name='gemini-2.0-flash',
+    #         generation_config=generation_config
+    #     )
+    #     response = model.generate_content(evaluator_prompt)
+    #     if not response.text:
+    #         print("Empty response from Gemini API")
+    #         return None, ""
+    #     evaluator_text = response.text.strip()
+    #     score_match = re.search(r"Score[:\s]*(\d)", evaluator_text)
+    #     score = int(score_match.group(1)) if score_match else None
+    #     return score, evaluator_text
+    # except Exception as e:
+    #     print(f"Evaluator error: {str(e)}")
+    #     return None, ""
 
 ###############################################################################
 # Extract Model 
@@ -573,7 +576,7 @@ if st.button("Generate"):
                 # Extract evaluation parts
                 user_summary, model_comparison, model_judgement = extract_evaluation_parts(initial_output)
                 
-                # Step 2: Evaluate the initial output using Gemini.
+                # Step 2: Evaluate the initial output using OpenAI.
                 score, evaluator_feedback = evaluate_content(initial_output, rubric_context)
                 
                 # Step 3: Refine the content using evaluator feedback.
@@ -631,24 +634,21 @@ if st.button("Generate"):
             except Exception as e:
                 st.error(f"An error occurred: {e}")
 
-def verify_model_availability():
-    """Verify that the required model is available"""
-    try:
-        available_models = [m.name for m in genai.list_models()]
-        required_model = 'gemini-2.0-flash'
-        
-        if required_model not in available_models:
-            # Log error to console instead of showing to user
-            print(f"Required model '{required_model}' is not available. Using default model 'gemini-pro' instead.")
-            return 'gemini-pro'
-        return required_model
-    except Exception as e:
-        print(f"Error verifying model availability: {str(e)}")  # Log to console
-        return 'gemini-pro'
+# Comment out or remove this function since we're not using Gemini currently
+# def verify_model_availability():
+#     """Verify that the required model is available"""
+#     try:
+#         available_models = [m.name for m in genai.list_models()]
+#         required_model = 'gemini-2.0-flash'
+#         
+#         if required_model not in available_models:
+#             # Log error to console instead of showing to user
+#             print(f"Required model '{required_model}' is not available. Using default model 'gemini-pro' instead.")
+#             return 'gemini-pro'
+#         return required_model
+#     except Exception as e:
+#         print(f"Error verifying model availability: {str(e)}")  # Log to console
+#         return 'gemini-pro'
 
-# Remove the test button from UI
-# if st.button("Test Consent Webhook"):
-#     test_consent_webhook()
-
-# Remove model verification from UI display
-model_to_use = verify_model_availability()
+# Remove this line at the bottom of your file
+# model_to_use = verify_model_availability()

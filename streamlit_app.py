@@ -9,6 +9,13 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo  # For timezone support
 
+# Add this after imports but before any other Streamlit commands
+st.set_page_config(
+    page_title="NexaTalent AI",
+    page_icon="reference_materials/NT Icon.png",
+    layout="centered"
+)
+
 # Comment out Google AI imports since we're not using them currently
 # try:
 #     import google.generativeai as genai
@@ -38,6 +45,7 @@ if not api_key:
     st.stop()
 
 openai.api_key = api_key
+
 
 ###############################################################################
 # Helper function for timestamp in PST with 12-hour format
@@ -551,7 +559,8 @@ We have found that our tools generate the best content when they know more about
 ###############################################################################
 # Streamlit UI and Integration
 ###############################################################################
-st.title("NexaTalent AI")
+# Replace text title with logo
+st.image("reference_materials/Logo_Nexatalent_RGB.png", width=300)
 st.subheader("Your assistant for generating high-quality hiring content.")
 
 # Task selection

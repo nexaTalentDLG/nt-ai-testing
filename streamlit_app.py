@@ -179,7 +179,7 @@ By clicking "I understand and accept", you acknowledge that:
         email = st.text_input("Enter your email address:")
         
         # Button is disabled until an email is entered.
-        if st.button("I understand and accept", disabled=(not email.strip())):
+        if st.button("I understand and accept", disabled=(not re.match(r"[^@]+@[^@]+\.[^@]+", email))):
             if log_consent(email) is not None:
                 st.session_state.consent = True
                 consent_container.empty()

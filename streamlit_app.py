@@ -720,8 +720,15 @@ if st.button("Generate"):
                         "If you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com."
                     )
                 else:
-                    # Display the output directly
-                    st.text_area("Generated Content", value=refined_output.strip(), height=400)
+                    # Clean the output by removing everything before the first "**"
+                    if "**" in refined_output:
+                        clean_output = refined_output.split("**", 1)[1]
+                        clean_output = "**" + clean_output
+                    else:
+                        clean_output = refined_output
+                    
+                    # Display the cleaned output
+                    st.text_area("Generated Content", value=clean_output.strip(), height=400)
 
             except Exception as e:
                 st.error(f"An error occurred: {e}")

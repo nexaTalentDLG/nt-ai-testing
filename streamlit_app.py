@@ -190,7 +190,7 @@ By clicking "I understand and accept", you acknowledge that:
 ###############################################################################
 # Updated Logging Function with New WebApp URL (Main Logger)
 ###############################################################################
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbx2DqMxWIiYvrdNQocVb3m_vTDxSd657a1CQdUMM3EI1z6HsQkpfcPp8eWREN0P8Bev/exec"
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwCAIH6i_Zzzw_Q_9xI1wqOjsSjHI_THC6c7aTOpS2ffYGoXbFZ6h8WkQa70Y3G3EZK/exec"
 
 def log_to_google_sheets(
     tool_selection,
@@ -645,8 +645,8 @@ if st.button("Generate"):
             )
             
             try:
-                # Step 1: Generate initial content.
-                response = openai.chat.completions.create(
+                # Step 1: Generate initial content and track tokens
+                response_initial = openai.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
                         {"role": "system", "content": final_instructions},
@@ -654,42 +654,132 @@ if st.button("Generate"):
                     ],
                     temperature=0.7
                 )
-                
-                initial_output = response.choices[0].message.content.strip()
-                
-                usage = getattr(response, "usage", None)
-                if usage is not None:
-                    prompt_tokens = usage.prompt_tokens
-                    completion_tokens = usage.completion_tokens
-                    total_tokens = usage.total_tokens
+                initial_output = response_initial.choices[0].message.content.strip()
+                usage_initial = getattr(response_initial, "usage", None)
+                if usage_initial:
+                    initial_prompt_tokens = usage_initial.prompt_tokens
+                    initial_completion_tokens = usage_initial.completion_tokens
+                    initial_total_tokens = usage_initial.total_tokens
                 else:
-                    prompt_tokens = completion_tokens = total_tokens = ""
-                
-                # Extract evaluation parts
-                user_summary, model_comparison, model_judgement = extract_evaluation_parts(initial_output)
-                
-                # Step 2: Evaluate the initial output using OpenAI.
-                score, evaluator_feedback = evaluate_content(initial_output, rubric_context)
-                
-                # Step 3: Refine the content using evaluator feedback.
-                refinement_instructions = (
-                    f"The following content was generated:\n{initial_output}\n\n"
-                    f"The evaluator provided the following feedback:\n{evaluator_feedback}\n\n"
-                    f"Please refine the content based on the feedback and ensure it follows this format:\n\n"
-                    f"{TASK_FORMAT_DEFINITIONS[task]}\n\n"
-                    "Important: Do not include any evaluation criteria, refinement notes, or improvement suggestions in the final output."
-                )
+                    initial_prompt_tokens = initial_completion_tokens = initial_total_tokens = 0
+
+                # Step 2: Evaluate using the evaluator model and capture its token usage
+                def evaluate_content(generated_output, rubric_context):
+                    evaluator_prompt = (
+                        "You are an expert evaluator. Using the following rubric, evaluate the generated content below. "
+                        "Return a numerical score (0-5) and provide detailed feedback for improvements.\n\n"
+                        f"Rubric Context:\n{rubric_context}\n\n"
+                        f"Generated Content:\n{generated_output}\n\n"
+                        "Important: Start your response with 'Score: X' where X is your numerical score, "
+                        "then provide your detailed feedback."
+                    )
+                    try:
+                        response = openai.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=[
+                                {"role": "system", "content": "You are an expert evaluator focused on providing clear, actionable feedback."},
+                                {"role": "user", "content": evaluator_prompt}
+                            ],
+                            temperature=0.7
+                        )
+                        evaluator_text = response.choices[0].message.content.strip()
+                        usage_evaluator = getattr(response, "usage", None)
+                        if usage_evaluator:
+                            evaluator_prompt_tokens = usage_evaluator.prompt_tokens
+                            evaluator_completion_tokens = usage_evaluator.completion_tokens
+                            evaluator_total_tokens = usage_evaluator.total_tokens
+                        else:
+                            evaluator_prompt_tokens = evaluator_completion_tokens = evaluator_total_tokens = 0
+
+                        score_match = re.search(r"Score:\s*(\d)", evaluator_text)
+                        score = int(score_match.group(1)) if score_match else None
+
+                        return (score, evaluator_text,
+                                evaluator_prompt_tokens, evaluator_completion_tokens, evaluator_total_tokens)
+                    except Exception as e:
+                        print(f"Evaluator error: {str(e)}")
+                        return None, "", 0, 0, 0
+
+                score, evaluator_feedback, evaluator_prompt_tokens, evaluator_completion_tokens, evaluator_total_tokens = evaluate_content(initial_output, rubric_context)
+
+                # Step 3: Generate final refined output and track tokens
                 refined_response = openai.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
                         {"role": "system", "content": final_instructions},
-                        {"role": "user", "content": refinement_instructions}
+                        {"role": "user", "content": (
+                            f"The following content was generated:\n{initial_output}\n\n"
+                            f"The evaluator provided the following feedback:\n{evaluator_feedback}\n\n"
+                            f"Please refine the content based on the feedback and ensure it follows this format:\n\n"
+                            f"{TASK_FORMAT_DEFINITIONS[task]}\n\n"
+                            "Important: Do not include any evaluation criteria, refinement notes, or improvement suggestions in the final output."
+                        )}
                     ],
                     temperature=0.7
                 )
                 refined_output = refined_response.choices[0].message.content.strip()
-                
-                # Move the logging here, after all data is available
+                usage_final = getattr(refined_response, "usage", None)
+                if usage_final:
+                    final_prompt_tokens = usage_final.prompt_tokens
+                    final_completion_tokens = usage_final.completion_tokens
+                    final_total_tokens = usage_final.total_tokens
+                else:
+                    final_prompt_tokens = final_completion_tokens = final_total_tokens = 0
+
+                # Compute overall total tokens (sum of all three exchanges)
+                overall_total_tokens = initial_total_tokens + evaluator_total_tokens + final_total_tokens
+
+                # Extract evaluation parts (this defines user_summary, model_comparison, model_judgement)
+                user_summary, model_comparison, model_judgement = extract_evaluation_parts(refined_output)
+
+                # Modified logging function signature (ensure the new token metrics are logged)
+                def log_to_google_sheets(
+                    tool_selection,
+                    user_input,
+                    initial_output,
+                    evaluator_feedback,
+                    evaluator_score,
+                    refined_output,
+                    initial_prompt_tokens,
+                    initial_completion_tokens,
+                    evaluator_prompt_tokens,
+                    evaluator_completion_tokens,
+                    final_prompt_tokens,
+                    final_completion_tokens,
+                    overall_total_tokens,
+                    feedback=None,
+                    user_summary=None,
+                    model_comparison=None,
+                    model_judgement=None
+                ):
+                    timestamp = get_current_timestamp()
+                    data = {
+                        "timestamp": timestamp,
+                        "tool_selection": tool_selection,
+                        "user_input": user_input,
+                        "initial_output": initial_output,
+                        "evaluator_feedback": evaluator_feedback,
+                        "evaluator_score": evaluator_score,
+                        "refined_output": refined_output,
+                        "initial_prompt_tokens": initial_prompt_tokens,
+                        "initial_completion_tokens": initial_completion_tokens,
+                        "evaluator_prompt_tokens": evaluator_prompt_tokens,
+                        "evaluator_completion_tokens": evaluator_completion_tokens,
+                        "final_prompt_tokens": final_prompt_tokens,
+                        "final_completion_tokens": final_completion_tokens,
+                        "overall_total_tokens": overall_total_tokens,
+                        "feedback": feedback if feedback is not None else "",
+                        "user_summary": user_summary if user_summary is not None else "",
+                        "model_comparison": model_comparison if model_comparison is not None else "",
+                        "model_judgement": model_judgement if model_judgement is not None else ""
+                    }
+                    try:
+                        response = requests.post(WEBHOOK_URL, json=data)
+                        return response.text
+                    except Exception as e:
+                        return f"Logging error: {e}"
+
+                # Finally, update your log call with the new token metrics
                 log_to_google_sheets(
                     tool_selection=task,
                     user_input=user_notes,
@@ -697,21 +787,23 @@ if st.button("Generate"):
                     evaluator_feedback=evaluator_feedback,
                     evaluator_score=score,
                     refined_output=refined_output,
+                    initial_prompt_tokens=initial_prompt_tokens,
+                    initial_completion_tokens=initial_completion_tokens,
+                    evaluator_prompt_tokens=evaluator_prompt_tokens,
+                    evaluator_completion_tokens=evaluator_completion_tokens,
+                    final_prompt_tokens=final_prompt_tokens,
+                    final_completion_tokens=final_completion_tokens,
+                    overall_total_tokens=overall_total_tokens,
                     feedback=f"Refinement based on evaluator score: {score}",
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    total_tokens=total_tokens,
                     user_summary=user_summary,
                     model_comparison=model_comparison,
                     model_judgement=model_judgement
                 )
-
-                # Step 4: Check the refined output for model judgement value.
                 model_judgement_value = None
                 judgement_match = re.search(r"\{model_judgement\}[:\s]*([0-5])", refined_output)
                 if judgement_match:
                     model_judgement_value = int(judgement_match.group(1))
-                
+
                 if model_judgement_value is not None and model_judgement_value <= 2:
                     st.warning(
                         "It looks like you may be trying to complete a task that this tool hasn't yet been fine-tuned to handle. "

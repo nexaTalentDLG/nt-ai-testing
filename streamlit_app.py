@@ -46,6 +46,17 @@ if not api_key:
 
 openai.api_key = api_key
 
+###############################################################################
+# Helper function for token counting
+###############################################################################
+
+# Helper function for token counting (naively using whitespace split)
+def count_tokens(text):
+    return len(text.split())
+
+# Helper function to compute token counts for a given stage.
+def compute_tokens_for_stage(system_msg, user_msg):
+    return {"system": count_tokens(system_msg), "user": count_tokens(user_msg)}
 
 ###############################################################################
 # Helper function for timestamp in PST with 12-hour format
@@ -57,7 +68,7 @@ def get_current_timestamp():
 ###############################################################################
 # Consent Tracker Setup (Updated webhook)
 ###############################################################################
-CONSENT_TRACKER_URL = "https://script.google.com/macros/s/AKfycbzZclgguubRjzWSHMWUBiMjWelPqKJ9K-EWZhLDf0unPdeobMYbSS4AW9UJPwCSQF7Q/exec"
+CONSENT_TRACKER_URL = "https://script.google.com/macros/s/AKfycbz7XdhmBTePG4yF0iee9LMOtWqmN8DUIvtSGzoVHRfxZNl0qgiUFz4t45ru0uCpsPM/exec"
 
 def log_consent(email):
     """
@@ -645,12 +656,18 @@ if st.button("Generate"):
             )
             
             try:
-                # Step 1: Generate initial content and track tokens
+                # -------------------------------
+                # Step 1: Initial Generation
+                # -------------------------------
+                initial_submitted_text = f"USER NOTES:\n{user_notes}"
+                # Compute token counts for the initial stage
+                initial_tokens = compute_tokens_for_stage(final_instructions, initial_submitted_text)
+                
                 response_initial = openai.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
                         {"role": "system", "content": final_instructions},
-                        {"role": "user", "content": f"USER NOTES:\n{user_notes}"}
+                        {"role": "user", "content": initial_submitted_text}
                     ],
                     temperature=0.7
                 )
@@ -663,22 +680,26 @@ if st.button("Generate"):
                 else:
                     initial_prompt_tokens = initial_completion_tokens = initial_total_tokens = 0
 
-                # Step 2: Evaluate using the evaluator model and capture its token usage
+                # -------------------------------
+                # Step 2: Evaluation Stage
+                # -------------------------------
+                evaluator_instructions_text = "You are an expert evaluator focused on providing clear, actionable feedback."
+                evaluator_submitted_text = (
+                    "You are an expert evaluator. Using the following rubric, evaluate the generated content below. "
+                    "Return a numerical score (0-5) and provide detailed feedback for improvements.\n\n"
+                    f"Rubric Context:\n{rubric_context}\n\n"
+                    f"Generated Content:\n{initial_output}\n\n"
+                    "Important: Start your response with 'Score: X' where X is your numerical score, then provide your detailed feedback."
+                )
+                evaluator_tokens = compute_tokens_for_stage(evaluator_instructions_text, evaluator_submitted_text)
+                
                 def evaluate_content(generated_output, rubric_context):
-                    evaluator_prompt = (
-                        "You are an expert evaluator. Using the following rubric, evaluate the generated content below. "
-                        "Return a numerical score (0-5) and provide detailed feedback for improvements.\n\n"
-                        f"Rubric Context:\n{rubric_context}\n\n"
-                        f"Generated Content:\n{generated_output}\n\n"
-                        "Important: Start your response with 'Score: X' where X is your numerical score, "
-                        "then provide your detailed feedback."
-                    )
                     try:
                         response = openai.chat.completions.create(
                             model="gpt-4o-mini",
                             messages=[
-                                {"role": "system", "content": "You are an expert evaluator focused on providing clear, actionable feedback."},
-                                {"role": "user", "content": evaluator_prompt}
+                                {"role": "system", "content": evaluator_instructions_text},
+                                {"role": "user", "content": evaluator_submitted_text}
                             ],
                             temperature=0.7
                         )
@@ -702,18 +723,23 @@ if st.button("Generate"):
 
                 score, evaluator_feedback, evaluator_prompt_tokens, evaluator_completion_tokens, evaluator_total_tokens = evaluate_content(initial_output, rubric_context)
 
-                # Step 3: Generate final refined output and track tokens
+                # -------------------------------
+                # Step 3: Final (Refinement) Stage
+                # -------------------------------
+                final_submitted_text = (
+                    f"The following content was generated:\n{initial_output}\n\n"
+                    f"The evaluator provided the following feedback:\n{evaluator_feedback}\n\n"
+                    f"Please refine the content based on the feedback and ensure it follows this format:\n\n"
+                    f"{TASK_FORMAT_DEFINITIONS[task]}\n\n"
+                    "Important: Do not include any evaluation criteria, refinement notes, or improvement suggestions in the final output."
+                )
+                final_tokens = compute_tokens_for_stage(final_instructions, final_submitted_text)
+                
                 refined_response = openai.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
                         {"role": "system", "content": final_instructions},
-                        {"role": "user", "content": (
-                            f"The following content was generated:\n{initial_output}\n\n"
-                            f"The evaluator provided the following feedback:\n{evaluator_feedback}\n\n"
-                            f"Please refine the content based on the feedback and ensure it follows this format:\n\n"
-                            f"{TASK_FORMAT_DEFINITIONS[task]}\n\n"
-                            "Important: Do not include any evaluation criteria, refinement notes, or improvement suggestions in the final output."
-                        )}
+                        {"role": "user", "content": final_submitted_text}
                     ],
                     temperature=0.7
                 )
@@ -726,13 +752,15 @@ if st.button("Generate"):
                 else:
                     final_prompt_tokens = final_completion_tokens = final_total_tokens = 0
 
-                # Compute overall total tokens (sum of all three exchanges)
+                # Compute overall total tokens (if needed)
                 overall_total_tokens = initial_total_tokens + evaluator_total_tokens + final_total_tokens
 
-                # Extract evaluation parts (this defines user_summary, model_comparison, model_judgement)
+                # Extract evaluation parts (defines user_summary, model_comparison, model_judgement)
                 user_summary, model_comparison, model_judgement = extract_evaluation_parts(refined_output)
 
-                # Modified logging function signature (ensure the new token metrics are logged)
+                # -------------------------------
+                # Logging: Include new token metrics
+                # -------------------------------
                 def log_to_google_sheets(
                     tool_selection,
                     user_input,
@@ -747,6 +775,13 @@ if st.button("Generate"):
                     final_prompt_tokens,
                     final_completion_tokens,
                     overall_total_tokens,
+                    # New additional token metrics:
+                    initial_instructions_tokens,
+                    initial_submitted_tokens,
+                    evaluator_instructions_tokens,
+                    evaluator_submitted_tokens,
+                    final_instructions_tokens,
+                    final_submitted_tokens,
                     feedback=None,
                     user_summary=None,
                     model_comparison=None,
@@ -768,6 +803,12 @@ if st.button("Generate"):
                         "final_prompt_tokens": final_prompt_tokens,
                         "final_completion_tokens": final_completion_tokens,
                         "overall_total_tokens": overall_total_tokens,
+                        "initial_instructions_tokens": initial_instructions_tokens,
+                        "initial_submitted_tokens": initial_submitted_tokens,
+                        "evaluator_instructions_tokens": evaluator_instructions_tokens,
+                        "evaluator_submitted_tokens": evaluator_submitted_tokens,
+                        "final_instructions_tokens": final_instructions_tokens,
+                        "final_submitted_tokens": final_submitted_tokens,
                         "feedback": feedback if feedback is not None else "",
                         "user_summary": user_summary if user_summary is not None else "",
                         "model_comparison": model_comparison if model_comparison is not None else "",
@@ -779,7 +820,7 @@ if st.button("Generate"):
                     except Exception as e:
                         return f"Logging error: {e}"
 
-                # Finally, update your log call with the new token metrics
+                # Call log_to_google_sheets with our computed token counts:
                 log_to_google_sheets(
                     tool_selection=task,
                     user_input=user_notes,
@@ -794,11 +835,18 @@ if st.button("Generate"):
                     final_prompt_tokens=final_prompt_tokens,
                     final_completion_tokens=final_completion_tokens,
                     overall_total_tokens=overall_total_tokens,
+                    initial_instructions_tokens=initial_tokens["system"],
+                    initial_submitted_tokens=initial_tokens["user"],
+                    evaluator_instructions_tokens=evaluator_tokens["system"],
+                    evaluator_submitted_tokens=evaluator_tokens["user"],
+                    final_instructions_tokens=final_tokens["system"],
+                    final_submitted_tokens=final_tokens["user"],
                     feedback=f"Refinement based on evaluator score: {score}",
                     user_summary=user_summary,
                     model_comparison=model_comparison,
                     model_judgement=model_judgement
                 )
+
                 model_judgement_value = None
                 judgement_match = re.search(r"\{model_judgement\}[:\s]*([0-5])", refined_output)
                 if judgement_match:
@@ -819,7 +867,6 @@ if st.button("Generate"):
                     else:
                         clean_output = refined_output
                     
-                    # Display the cleaned output
                     st.text_area("Generated Content", value=clean_output.strip(), height=400)
 
             except Exception as e:

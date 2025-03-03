@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import re
 from datetime import datetime
 from zoneinfo import ZoneInfo  # For timezone support
+import tiktoken
 
 # Add this after imports but before any other Streamlit commands
 st.set_page_config(
@@ -50,13 +51,18 @@ openai.api_key = api_key
 # Helper function for token counting
 ###############################################################################
 
-# Helper function for token counting (naively using whitespace split)
 def count_tokens(text):
-    return len(text.split())
+    """Count tokens using tiktoken, OpenAI's tokenizer"""
+    encoding = tiktoken.encoding_for_model("gpt-4o-mini")  # or whatever model you're using
+    return len(encoding.encode(text))
 
-# Helper function to compute token counts for a given stage.
 def compute_tokens_for_stage(system_msg, user_msg):
-    return {"system": count_tokens(system_msg), "user": count_tokens(user_msg)}
+    """Compute tokens for system and user messages using tiktoken"""
+    encoding = tiktoken.encoding_for_model("gpt-4o-mini")  # or whatever model you're using
+    return {
+        "system": len(encoding.encode(system_msg)),
+        "user": len(encoding.encode(user_msg))
+    }
 
 ###############################################################################
 # Helper function for timestamp in PST with 12-hour format
@@ -274,68 +280,62 @@ def log_to_google_sheets(
 
 def evaluate_content(generated_output, rubric_context):
     """
-    Sends the generated output and rubric context to the evaluator model (OpenAI)
-    and returns the evaluation feedback and score.
+    Sends the generated output and rubric context to the evaluator assistant (OpenAI)
+    and returns the evaluation feedback and score, along with token usage.
     """
-    # Comment out Google AI configuration for now
-    # GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-    # if not GOOGLE_API_KEY and hasattr(st.secrets, "GOOGLE_API_KEY"):
-    #     GOOGLE_API_KEY = st.secrets.GOOGLE_API_KEY
-    # if not GOOGLE_API_KEY:
-    #     print("Google API key not found.")  # Log to console
-    #     return None, ""
-    # genai.configure(api_key=GOOGLE_API_KEY)
-    
-    evaluator_prompt = (
-        "You are an expert evaluator. Using the following rubric, evaluate the generated content below. "
-        "Return a numerical score (0-5) and provide detailed feedback for improvements.\n\n"
-        f"Rubric Context:\n{rubric_context}\n\n"
-        f"Generated Content:\n{generated_output}\n\n"
-        "Important: Start your response with 'Score: X' where X is your numerical score, "
-        "then provide your detailed feedback."
-    )
-    
     try:
-        # Use OpenAI instead of Gemini
-        response = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are an expert evaluator focused on providing clear, actionable feedback."},
-                {"role": "user", "content": evaluator_prompt}
-            ],
-            temperature=0.7
+        # Create a thread for the evaluation
+        thread = openai.beta.threads.create()
+        
+        # Add the evaluation request message to the thread
+        message_content = (
+            f"{EVALUATOR_INSTRUCTIONS}\n\n"
+            f"Rubric Context:\n{rubric_context}\n\n"
+            f"Content to Evaluate:\n{generated_output}\n\n"
         )
         
-        evaluator_text = response.choices[0].message.content.strip()
-        score_match = re.search(r"Score:\s*(\d)", evaluator_text)
-        score = int(score_match.group(1)) if score_match else None
+        # Create message and track approximate token usage
+        message = openai.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=message_content
+        )
+        
+        # Run the assistant on the thread
+        run = openai.beta.threads.runs.create(
+            thread_id=thread.id,
+            assistant_id="asst_YVQKg7useHzYPRWMYb3HY7o6"
+        )
+        
+        # Wait for the run to complete
+        while run.status in ["queued", "in_progress"]:
+            run = openai.beta.threads.runs.retrieve(
+                thread_id=thread.id,
+                run_id=run.id
+            )
+        
+        # Get the assistant's response
+        messages = openai.beta.threads.messages.list(thread_id=thread.id)
+        evaluator_text = messages.data[0].content[0].text.value.strip()
+        
+        # Approximate token counts for logging
+        evaluator_prompt_tokens = count_tokens(message_content)
+        evaluator_completion_tokens = count_tokens(evaluator_text)
+        evaluator_total_tokens = evaluator_prompt_tokens + evaluator_completion_tokens
+        
+        # Extract the score - updated to handle decimal values
+        score_match = re.search(r"Score:\s*(\d+\.?\d*)", evaluator_text)
+        score = float(score_match.group(1)) if score_match else None
         
         if score is None:
             print("Could not extract score from evaluator response")  # Log to console
             
-        return score, evaluator_text
+        return (score, evaluator_text, 
+                evaluator_prompt_tokens, evaluator_completion_tokens, evaluator_total_tokens)
         
     except Exception as e:
         print(f"Evaluator error: {str(e)}")  # Log to console
-        return None, ""
-
-    # Keep Google AI code commented out for future use
-    # try:
-    #     model = genai.GenerativeModel(
-    #         model_name='gemini-2.0-flash',
-    #         generation_config=generation_config
-    #     )
-    #     response = model.generate_content(evaluator_prompt)
-    #     if not response.text:
-    #         print("Empty response from Gemini API")
-    #         return None, ""
-    #     evaluator_text = response.text.strip()
-    #     score_match = re.search(r"Score[:\s]*(\d)", evaluator_text)
-    #     score = int(score_match.group(1)) if score_match else None
-    #     return score, evaluator_text
-    # except Exception as e:
-    #     print(f"Evaluator error: {str(e)}")
-    #     return None, ""
+        return None, "", 0, 0, 0
 
 ###############################################################################
 # Extract Model 
@@ -358,6 +358,31 @@ def extract_evaluation_parts(text):
     model_judgement = model_judgement_match.group(1).strip() if model_judgement_match else ""
     
     return user_summary, model_comparison, model_judgement
+
+def extract_actionable_feedback(evaluator_text):
+    """
+    Extracts the actionable feedback summary from the evaluator's response.
+    """
+    # Try multiple possible section headers
+    patterns = [
+        r"## Actionable Feedback\s*(.*?)(?=##|$)",
+        r"Actionable Feedback[:\s]*(.*?)(?=##|$)",
+        r"## Final Summary\s*(.*?)(?=##|$)",
+        r"Final Summary[:\s]*(.*?)(?=##|$)",
+    ]
+    
+    for pattern in patterns:
+        summary_match = re.search(pattern, evaluator_text, re.DOTALL | re.IGNORECASE)
+        if summary_match and summary_match.group(1).strip():
+            return summary_match.group(1).strip()
+    
+    # If no match found, try to extract any content after the last score
+    last_score_pattern = r"Score:\s*\d+\.?\d*\s*(.*?)$"
+    last_score_match = re.search(last_score_pattern, evaluator_text, re.DOTALL)
+    if last_score_match and last_score_match.group(1).strip():
+        return last_score_match.group(1).strip()
+    
+    return "No actionable feedback found"
 
 ###############################################################################
 # Mappings and Helper Texts
@@ -417,6 +442,85 @@ TASK_OVERVIEWS = {
     )
 }
 
+###############################################################################
+# Evaluation Instructions
+###############################################################################
+EVALUATOR_INSTRUCTIONS = """
+## Your Role
+You are an expert evaluator tasked with assessing candidate responses based on specific rubric dimensions. You will receive evaluation rubrics dynamically and must apply them accurately and consistently to evaluate content.
+
+## General Evaluation Process
+
+1. **Understand the Rubric**
+   - Carefully read and internalize the provided rubric
+   - Note the dimension name, key components, and rationale
+   - Understand the level descriptions (typically 1-5) and their distinguishing characteristics
+
+2. **Analyze the Content**
+   - Read the candidate's response thoroughly
+   - Identify specific evidence related to the rubric dimension
+   - Look for both explicit statements and implicit demonstrations of the skills being evaluated
+
+3. **Match Evidence to Level Criteria**
+   - Compare the identified evidence against each level's description and attributes
+   - Determine which level best matches the overall quality of the response
+   - Consider both strengths and weaknesses in the candidate's response
+
+4. **Provide a Structured Evaluation**
+   - Assign a specific level (1-5)
+   - Justify your rating with concrete evidence from the response
+   - Offer constructive feedback for improvement when appropriate
+
+## Evaluation Framework
+
+For each evaluation, structure your assessment as follows:
+
+### 1. Dimension Summary
+- Briefly restate the dimension being evaluated
+- Note the key components being assessed
+
+### 2. Evidence Analysis
+- Identify 2-3 specific examples from the response that relate to the dimension
+- For each example, explain how it demonstrates skills relevant to the rubric
+- Note both strengths and areas for development
+
+### 3. Level Assignment
+- Assign a specific level (1-5)
+- Provide a clear justification for why this level was chosen over others
+- Reference specific attributes from the rubric level description that match the response
+
+### 4. Feedback Summary
+- Offer 1-2 constructive suggestions for improvement (for levels 1-4)
+- Highlight specific strengths to maintain (for all levels)
+- Frame feedback in terms of specific actions the candidate could take
+
+## Evaluation Principles
+
+- **Evidence-Based**: Ground all assessments in specific evidence from the response
+- **Balanced**: Consider both strengths and areas for development
+- **Consistent**: Apply the same standards across all evaluations
+- **Specific**: Avoid vague generalizations; provide concrete examples
+- **Constructive**: Frame feedback to enable improvement
+
+## Actionable Feedback
+
+After reviewing all dimensions and completing the steps above. Create a final summary of the feedback with acitonable steps for the main model to improve its response.
+
+## Important Considerations
+
+- Focus on the specific dimension being evaluated, even if the response contains elements relevant to other dimensions
+- Maintain objectivity and avoid bias in your evaluations
+- Consider the response holistically while still providing specific evidence
+- Apply the rubric as written without adding additional criteria
+- When in doubt between two levels, review the specific attributes of each level and select the one with more matching characteristics
+- Use the NexaTalent 9 Pillars of Excellence from your knowledge base as a foundation of values as you complete this work
+
+IMPORTANT: Always start your response with 'Score: X' where X is your numerical score (0-5) that averages the scores from all 5 dimensions.
+"""
+
+###############################################################################
+# MASTER_INSTRUCTIONS
+###############################################################################
 MASTER_INSTRUCTIONS = """
 # CONTEXT #
 You are a highly skilled assistant specializing in creating high-quality hiring materials. All of your outputs must adhere to the NexaTalent Pillars of Excellence and be evaluated against the rubric provided in the context above. Use the rubric as the standard for quality and for grading your output.
@@ -452,6 +556,9 @@ Hiring team members and hiring managers.
 [task_format]
 """
 
+###############################################################################
+# TASK_FORMAT_DEFINITIONS
+###############################################################################
 TASK_FORMAT_DEFINITIONS = {
     "Write a job description": """
 Output should contain the following headings: "About Us, Job Summary, Key Responsibilities, Requirements, Qualifications, Key Skills, Benefits, Salary, and Work Environment". 
@@ -706,44 +813,14 @@ if st.button("Generate"):
                 # -------------------------------
                 # Step 2: Evaluation Stage
                 # -------------------------------
-                evaluator_instructions_text = "You are an expert evaluator focused on providing clear, actionable feedback."
+                evaluator_instructions_text = EVALUATOR_INSTRUCTIONS
                 evaluator_submitted_text = (
-                    "You are an expert evaluator. Using the following rubric, evaluate the generated content below. "
-                    "Return a numerical score (0-5) and provide detailed feedback for improvements.\n\n"
+                    f"{EVALUATOR_INSTRUCTIONS}\n\n"
                     f"Rubric Context:\n{rubric_context}\n\n"
-                    f"Generated Content:\n{initial_output}\n\n"
-                    "Important: Start your response with 'Score: X' where X is your numerical score, then provide your detailed feedback."
+                    f"Content to Evaluate:\n{initial_output}\n\n"
                 )
                 evaluator_tokens = compute_tokens_for_stage(evaluator_instructions_text, evaluator_submitted_text)
                 
-                def evaluate_content(generated_output, rubric_context):
-                    try:
-                        response = openai.chat.completions.create(
-                            model="gpt-4o-mini",
-                            messages=[
-                                {"role": "system", "content": evaluator_instructions_text},
-                                {"role": "user", "content": evaluator_submitted_text}
-                            ],
-                            temperature=0.7
-                        )
-                        evaluator_text = response.choices[0].message.content.strip()
-                        usage_evaluator = getattr(response, "usage", None)
-                        if usage_evaluator:
-                            evaluator_prompt_tokens = usage_evaluator.prompt_tokens
-                            evaluator_completion_tokens = usage_evaluator.completion_tokens
-                            evaluator_total_tokens = usage_evaluator.total_tokens
-                        else:
-                            evaluator_prompt_tokens = evaluator_completion_tokens = evaluator_total_tokens = 0
-
-                        score_match = re.search(r"Score:\s*(\d)", evaluator_text)
-                        score = int(score_match.group(1)) if score_match else None
-
-                        return (score, evaluator_text,
-                                evaluator_prompt_tokens, evaluator_completion_tokens, evaluator_total_tokens)
-                    except Exception as e:
-                        print(f"Evaluator error: {str(e)}")
-                        return None, "", 0, 0, 0
-
                 score, evaluator_feedback, evaluator_prompt_tokens, evaluator_completion_tokens, evaluator_total_tokens = evaluate_content(initial_output, rubric_context)
 
                 # -------------------------------
@@ -778,12 +855,16 @@ if st.button("Generate"):
                 # Compute overall total tokens (if needed)
                 overall_total_tokens = initial_total_tokens + evaluator_total_tokens + final_total_tokens
 
-                # Extract evaluation parts (defines user_summary, model_comparison, model_judgement)
+                # Extract evaluation parts and actionable feedback
                 user_summary, model_comparison, model_judgement = extract_evaluation_parts(refined_output)
+                actionable_feedback = extract_actionable_feedback(evaluator_feedback)
+                
+                # Combine score and actionable feedback for logging
+                feedback_text = (
+                    f"Refinement based on evaluator score: {score}\n\n"
+                    f"Actionable Feedback:\n{actionable_feedback}"
+                )
 
-                # -------------------------------
-                # Logging: Include new token metrics
-                # -------------------------------
                 log_to_google_sheets(
                     tool_selection=task,
                     user_input=user_notes,
@@ -804,7 +885,7 @@ if st.button("Generate"):
                     evaluator_submitted_tokens=evaluator_tokens["user"],
                     final_instructions_tokens=final_tokens["system"],
                     final_submitted_tokens=final_tokens["user"],
-                    feedback=f"Refinement based on evaluator score: {score}",
+                    feedback=feedback_text,  # Updated to include actionable feedback
                     user_summary=user_summary,
                     model_comparison=model_comparison,
                     model_judgement=model_judgement

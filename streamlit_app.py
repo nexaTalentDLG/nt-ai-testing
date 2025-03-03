@@ -68,7 +68,7 @@ def get_current_timestamp():
 ###############################################################################
 # Consent Tracker Setup (Updated webhook)
 ###############################################################################
-CONSENT_TRACKER_URL = "https://script.google.com/macros/s/AKfycbz7XdhmBTePG4yF0iee9LMOtWqmN8DUIvtSGzoVHRfxZNl0qgiUFz4t45ru0uCpsPM/exec"
+CONSENT_TRACKER_URL = "https://script.google.com/macros/s/AKfycbxyGOLTYLV53dpevb1dsTuG0UVmq9twvcy45FK7SIgt3DFhW5uuKL4TQTNr4tT5ckMN/exec"
 
 def log_consent(email):
     """
@@ -201,7 +201,7 @@ By clicking "I understand and accept", you acknowledge that:
 ###############################################################################
 # Updated Logging Function with New WebApp URL (Main Logger)
 ###############################################################################
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwCAIH6i_Zzzw_Q_9xI1wqOjsSjHI_THC6c7aTOpS2ffYGoXbFZ6h8WkQa70Y3G3EZK/exec"
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzvhZ_WbMfaGIPK0A9Z-sg6hkiECE9Agnw6Y_gq9hClHbjldc4dfHJfdMZfl-ZrHQKj/exec"
 
 def log_to_google_sheets(
     tool_selection,
@@ -210,18 +210,29 @@ def log_to_google_sheets(
     evaluator_feedback,
     evaluator_score,
     refined_output,
+    # API usage token metrics:
+    initial_prompt_tokens=None,
+    initial_completion_tokens=None,
+    evaluator_prompt_tokens=None,
+    evaluator_completion_tokens=None,
+    final_prompt_tokens=None,
+    final_completion_tokens=None,
+    overall_total_tokens=None,
+    # New separate token metrics:
+    initial_instructions_tokens=None,
+    initial_submitted_tokens=None,
+    evaluator_instructions_tokens=None,
+    evaluator_submitted_tokens=None,
+    final_instructions_tokens=None,
+    final_submitted_tokens=None,
     feedback=None,
-    prompt_tokens=None,
-    completion_tokens=None,
-    total_tokens=None,
     user_summary=None,
     model_comparison=None,
     model_judgement=None
 ):
     """
-    Sends log data including initial output, evaluator feedback, evaluator score,
-    refined output, and additional evaluation details (user_summary, model_comparison, model_judgement),
-    along with the original fields, to the specified Google Sheet via the provided webhook.
+    Sends log data including the generated outputs, API usage token metrics, and
+    the new separate token tracking fields to the specified Google Sheet via the provided webhook.
     """
     timestamp = get_current_timestamp()
     data = {
@@ -232,10 +243,20 @@ def log_to_google_sheets(
         "evaluator_feedback": evaluator_feedback,
         "evaluator_score": evaluator_score,
         "refined_output": refined_output,
+        "initial_prompt_tokens": initial_prompt_tokens if initial_prompt_tokens is not None else "",
+        "initial_completion_tokens": initial_completion_tokens if initial_completion_tokens is not None else "",
+        "evaluator_prompt_tokens": evaluator_prompt_tokens if evaluator_prompt_tokens is not None else "",
+        "evaluator_completion_tokens": evaluator_completion_tokens if evaluator_completion_tokens is not None else "",
+        "final_prompt_tokens": final_prompt_tokens if final_prompt_tokens is not None else "",
+        "final_completion_tokens": final_completion_tokens if final_completion_tokens is not None else "",
+        "overall_total_tokens": overall_total_tokens if overall_total_tokens is not None else "",
+        "initial_instructions_tokens": initial_instructions_tokens if initial_instructions_tokens is not None else "",
+        "initial_submitted_tokens": initial_submitted_tokens if initial_submitted_tokens is not None else "",
+        "evaluator_instructions_tokens": evaluator_instructions_tokens if evaluator_instructions_tokens is not None else "",
+        "evaluator_submitted_tokens": evaluator_submitted_tokens if evaluator_submitted_tokens is not None else "",
+        "final_instructions_tokens": final_instructions_tokens if final_instructions_tokens is not None else "",
+        "final_submitted_tokens": final_submitted_tokens if final_submitted_tokens is not None else "",
         "feedback": feedback if feedback is not None else "",
-        "prompt_tokens": prompt_tokens if prompt_tokens is not None else "",
-        "completion_tokens": completion_tokens if completion_tokens is not None else "",
-        "total_tokens": total_tokens if total_tokens is not None else "",
         "user_summary": user_summary if user_summary is not None else "",
         "model_comparison": model_comparison if model_comparison is not None else "",
         "model_judgement": model_judgement if model_judgement is not None else ""
@@ -245,6 +266,7 @@ def log_to_google_sheets(
         return response.text
     except Exception as e:
         return f"Logging error: {e}"
+
 
 ###############################################################################
 # Evaluator Function
@@ -622,6 +644,7 @@ def load_rubric(file_path):
 if st.button("Generate"):
     if not user_notes.strip():
         st.warning("Please provide text or upload a file with valid content.")
+        st.stop()
     else:
         assistant_id = ASSISTANT_IDS[task]
         spinner_text = SPINNER_TEXTS[task]
@@ -761,66 +784,6 @@ if st.button("Generate"):
                 # -------------------------------
                 # Logging: Include new token metrics
                 # -------------------------------
-                def log_to_google_sheets(
-                    tool_selection,
-                    user_input,
-                    initial_output,
-                    evaluator_feedback,
-                    evaluator_score,
-                    refined_output,
-                    initial_prompt_tokens,
-                    initial_completion_tokens,
-                    evaluator_prompt_tokens,
-                    evaluator_completion_tokens,
-                    final_prompt_tokens,
-                    final_completion_tokens,
-                    overall_total_tokens,
-                    # New additional token metrics:
-                    initial_instructions_tokens,
-                    initial_submitted_tokens,
-                    evaluator_instructions_tokens,
-                    evaluator_submitted_tokens,
-                    final_instructions_tokens,
-                    final_submitted_tokens,
-                    feedback=None,
-                    user_summary=None,
-                    model_comparison=None,
-                    model_judgement=None
-                ):
-                    timestamp = get_current_timestamp()
-                    data = {
-                        "timestamp": timestamp,
-                        "tool_selection": tool_selection,
-                        "user_input": user_input,
-                        "initial_output": initial_output,
-                        "evaluator_feedback": evaluator_feedback,
-                        "evaluator_score": evaluator_score,
-                        "refined_output": refined_output,
-                        "initial_prompt_tokens": initial_prompt_tokens,
-                        "initial_completion_tokens": initial_completion_tokens,
-                        "evaluator_prompt_tokens": evaluator_prompt_tokens,
-                        "evaluator_completion_tokens": evaluator_completion_tokens,
-                        "final_prompt_tokens": final_prompt_tokens,
-                        "final_completion_tokens": final_completion_tokens,
-                        "overall_total_tokens": overall_total_tokens,
-                        "initial_instructions_tokens": initial_instructions_tokens,
-                        "initial_submitted_tokens": initial_submitted_tokens,
-                        "evaluator_instructions_tokens": evaluator_instructions_tokens,
-                        "evaluator_submitted_tokens": evaluator_submitted_tokens,
-                        "final_instructions_tokens": final_instructions_tokens,
-                        "final_submitted_tokens": final_submitted_tokens,
-                        "feedback": feedback if feedback is not None else "",
-                        "user_summary": user_summary if user_summary is not None else "",
-                        "model_comparison": model_comparison if model_comparison is not None else "",
-                        "model_judgement": model_judgement if model_judgement is not None else ""
-                    }
-                    try:
-                        response = requests.post(WEBHOOK_URL, json=data)
-                        return response.text
-                    except Exception as e:
-                        return f"Logging error: {e}"
-
-                # Call log_to_google_sheets with our computed token counts:
                 log_to_google_sheets(
                     tool_selection=task,
                     user_input=user_notes,

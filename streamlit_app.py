@@ -17,27 +17,8 @@ st.set_page_config(
     layout="centered"
 )
 
-# Comment out Google AI imports since we're not using them currently
-# try:
-#     import google.generativeai as genai
-# except ImportError:
-#     st.error("Required package 'google-generativeai' is not installed. Please install it using: pip install google-generativeai")
-#     st.stop()
-
 # Load environment variables
 load_dotenv()
-
-# Remove Google API key loading since we're not using it
-# google_api_key = os.getenv("GOOGLE_API_KEY")
-# if not google_api_key:
-#     st.write("Loading from .env failed. Checking Streamlit secrets...")
-#     if hasattr(st.secrets, "GOOGLE_API_KEY"):
-#         google_api_key = st.secrets.GOOGLE_API_KEY
-#         os.environ["GOOGLE_API_KEY"] = google_api_key
-
-# if not google_api_key:
-#     st.error("Google API key not found in either .env or Streamlit secrets.")
-#     st.stop()
 
 # Load OpenAI API key
 api_key = os.getenv("OPENAI_API_KEY")
@@ -207,7 +188,7 @@ By clicking "I understand and accept", you acknowledge that:
 ###############################################################################
 # Updated Logging Function with New WebApp URL (Main Logger)
 ###############################################################################
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzvhZ_WbMfaGIPK0A9Z-sg6hkiECE9Agnw6Y_gq9hClHbjldc4dfHJfdMZfl-ZrHQKj/exec"
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzRxRkB2ouAoieWKF_pNu5WbcpHp_neKxGq3BLK_SqHJxvowPPnLhgHH8N5RMYNI_P5/exec"
 
 def log_to_google_sheets(
     tool_selection,

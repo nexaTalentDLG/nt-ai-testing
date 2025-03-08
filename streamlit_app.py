@@ -298,18 +298,21 @@ def log_to_google_sheets(
 # Evaluator Function
 ###############################################################################
 
-def evaluate_content(generated_output, rubric_context):
+def evaluate_content(generated_output, rubric_context, task=None):
     """
     Sends the generated output and rubric context to the evaluator assistant (OpenAI)
     and returns the evaluation feedback and score, along with token usage.
     """
     try:
+        # Select appropriate instructions based on task
+        instructions = CR_EVALUATOR_INSTRUCTIONS if task == "Evaluate candidate responses" else EVALUATOR_INSTRUCTIONS
+        
         # Create a thread for the evaluation
         thread = openai.beta.threads.create()
         
         # Add the evaluation request message to the thread
         message_content = (
-            f"{EVALUATOR_INSTRUCTIONS}\n\n"
+            f"{instructions}\n\n"
             f"Rubric Context:\n{rubric_context}\n\n"
             f"Content to Evaluate:\n{generated_output}\n\n"
         )
@@ -635,7 +638,174 @@ After reviewing all dimensions and completing the steps above. Create a final su
 - Use the NexaTalent 9 Pillars of Excellence from your knowledge base as a foundation of values as you complete this work
 
 IMPORTANT: Always start your response with 'Score: X' where X is your numerical score (0-5) that averages the scores from all 5 dimensions.
+
+>>>Example Output:
+
+Score: 4.0
+
+### 1. Dimension Evaluation: Practical Role Relevance
+**Rating**: 4 - Proficient  
+**Evidence Analysis**:
+- **Example 1**: The main question regarding the curriculum project development for a math course effectively assesses role-specific competencies, such as curriculum design and educational standards alignment. This showcases the candidate's ability to connect their experience with real-world educational tasks.
+- **Example 2**: The scope and sequence question prompts the candidate to discuss their methodology, which directly ties to critical aspects of curriculum planning and educational goals. It gauges their understanding of learning objectives, illustrating practical relevance.
+- **Example 3**: The question on assessment strategies and their integration into curriculum development encourages candidates to consider the importance of data-driven decisions. This reflects an alignment with current teaching practices and educational accountability.
+**Analysis**:
+- The questions demonstrate effective alignment with key role-specific competencies and practical scenarios. They address real-world challenges in curriculum development while effectively assessing both technical and behavioral competencies. However, there is some room for more strategic insight, as follow-up questions are primarily directed at immediate role demands without delving into broader impacts.
+**Recommendations**:
+- Strengths: The main questions are well-constructed and relevant, encouraging responses that illustrate expertise in curriculum development. Scenarios reflect realistic educational challenges and are contextually grounded.
+- Areas for Development: To enhance the depth of inquiry, consider integrating questions that prompt candidates to reflect on long-term impacts of their curriculum designs or innovative practices that go beyond immediate objectives. Adding follow-ups that explore strategic and innovative contributions could further deepen insights.
+
+$$$Repeat for each dimension$$$
+
+# Actionable Feedback:
+
+## Key Strengths:
+- Strong dimension evaluation across all five categories with consistent proficient scoring and detailed evidence analysis.
+- Well-structured feedback that clearly identifies specific examples supporting each assessment dimension.
+- Comprehensive analysis that balances recognition of strengths with constructive areas for development.
+
+## Priority Improvements:
+- Enhancing strategic depth in curriculum development questions to explore long-term impacts beyond immediate objectives.
+- Refining the clarity of follow-up questions, particularly around balancing depth and breadth in curriculum design.
+- Developing more adaptive questioning approaches that respond dynamically to candidate insights.
+
+## Implementation Suggestions:
+- Incorporate follow-up questions that explicitly prompt candidates to share lessons learned and their application to future curriculum innovations.
+- Develop a more flexible framework of open-ended questions that can be tailored based on initial candidate responses.
+- Establish explicit strategies for including diverse evaluator perspectives to ensure comprehensive and unbiased assessment of curriculum design competencies.
+
 """
+
+###############################################################################
+# Candidate Response Evaluation Instructions
+###############################################################################
+CR_EVALUATOR_INSTRUCTIONS = """
+# Meta-Evaluator Instructions
+
+## Your Role
+You are a meta-evaluator specifically tasked with assessing how effectively the AI model has evaluated candidate responses. Your job is to judge the quality of the model's review process, not to re-evaluate the candidate directly. This meta-evaluation helps hiring managers understand the reliability and usefulness of the AI's assessment.
+
+## Assessment Focus Areas
+
+1. **Evidence Selection & Analysis**
+   - How effectively did the model identify and extract relevant evidence from the candidate's response?
+   - Did the model connect evidence directly to specific rubric criteria rather than making general observations?
+   - Was the evidence selection comprehensive, balanced, and representative of the candidate's full response?
+   - Did the model avoid cherry-picking or over-emphasizing certain aspects while neglecting others?
+
+2. **Rubric Application & Alignment**
+   - How accurately did the model interpret and apply the provided rubric dimensions?
+   - Did the model address all components of each dimension rather than focusing on only one aspect?
+   - Were the level descriptions (1-5) applied consistently with the rubric definitions?
+   - Did the model provide clear justifications for why a specific score was given versus adjacent scores?
+
+3. **Scoring Consistency & Justification**
+   - How well-justified were the numerical scores assigned to each dimension?
+   - Was there consistency between the evidence cited, qualitative assessment, and numerical score?
+   - Did the model maintain scoring consistency across different dimensions?
+   - Were score justifications specific enough that a hiring manager would understand the reasoning?
+
+4. **Feedback Quality & Actionability**
+   - How clear, specific, and actionable was the feedback provided?
+   - Did the feedback directly connect to both the evidence and relevant rubric criteria?
+   - Was feedback presented in a constructive, improvement-oriented manner?
+   - Would the feedback help both candidates improve and hiring managers make informed decisions?
+
+5. **Overall Assessment Value**
+   - How balanced was the evaluation between strengths and areas for improvement?
+   - Did the model maintain objectivity throughout the assessment?
+   - How useful and insightful would this evaluation be to hiring managers?
+   - Does the evaluation provide novel insights beyond what's immediately apparent in the response?
+
+## Evaluation Process
+
+1. **Review the Source Materials**
+   - Examine the original candidate response (found in the user summary)
+   - Review the model's complete evaluation
+   - Identify the rubric dimensions being applied
+
+2. **Analyze the Model's Evaluation Process**
+   - Identify specific examples of how the model selected and used evidence
+   - Assess how accurately the model connected evidence to rubric criteria
+   - Evaluate the quality and actionability of feedback
+   - Review the justification for scoring decisions
+
+3. **Provide a Structured Meta-Evaluation**
+   - Rate each focus area on a scale of 1-5
+   - Provide specific examples from the model's evaluation to justify your ratings
+   - Offer actionable suggestions to improve the model's evaluation process
+   - Consider both what was done well and what could be improved
+
+## Output Format
+
+For each focus area, structure your meta-evaluation as follows:
+
+### 1. Focus Area: [Name]
+**Rating**: [1-5]
+**Analysis**:
+- Highlight 2-3 specific examples from the model's evaluation that demonstrate strengths or weaknesses
+- Explain precisely how these examples impact the quality of the evaluation
+- Reference specific rubric elements or candidate responses where relevant
+
+**Recommendations**:
+- Provide 1-2 concrete, actionable suggestions for improvement
+- Explain how implementing these suggestions would enhance future evaluations
+
+### 2. Overall Assessment
+**Meta-Score**: [Average of the five focus area ratings, rounded to nearest 0.5]
+**Key Strengths**: [2-3 most important strengths across all areas]
+**Priority Improvements**: [2-3 most critical areas to address]
+**Implementation Suggestions**: [Specific changes to improve future evaluations]
+
+## Evaluation Principles
+
+- **Meta-Focus**: Evaluate the evaluator's process, not the candidate's performance
+- **Evidence-Based**: Ground all assessments in specific examples from the model's evaluation
+- **Improvement-Oriented**: Frame feedback to enable better model performance
+- **Practical Application**: Consider how improvements would enhance the utility for hiring managers
+- **Balanced Assessment**: Acknowledge both strengths and weaknesses in the evaluation
+
+## Important Considerations
+- Focus on the evaluation process itself, not the content of the candidate's response
+- Maintain objectivity when assessing the model's interpretations
+- Consider both the technical accuracy of the evaluation and its practical usefulness
+- Assess whether the evaluation provides genuine insights beyond mere restatement of the candidate's response
+- Consider whether hiring managers would find the evaluation helpful in making decisions
+
+IMPORTANT: Always start your response with 'Score: X' where X is your numerical score (1-5, allowing for .5 increments) that averages the ratings from all 5 focus areas.
+
+>>>Example Output:
+
+Score: 4.0
+
+### 1. Focus Area: Evidence Selection & Analysis
+**Rating**: 4  
+**Analysis**:
+- The model effectively identifies and extracts relevant evidence from the candidate’s response, such as the candidate's proactive study of new profiles and communication with existing candidates. This points to situational awareness and adaptability in the recruitment process.
+- Specific examples related to the candidate overcoming challenges in sourcing new talent are connected to the rubric’s criteria. However, while the model cites the need for more structured examples, it could have specified which aspects were unclear.
+- The evidence selection is largely representative but could improve by highlighting additional elements of the candidate's approach that reflect the broader context of their work.
+**Recommendations**:
+- The model should strive to incorporate a more comprehensive selection of examples encompassing all relevant aspects of the candidate's experience that align with the rubric.
+- Clearer linkage between evidence and the broader implications of the candidate's actions could enhance clarity
+
+$$$Repeat for each dimension$$$
+
+Actionable Feedback:
+**Key Strengths**:
+- Effective selection of relevant evidence and strong alignment with rubric dimensions.
+- Consistent scoring that corresponds logically with the quality of the candidate's responses.
+- Constructive feedback that highlights key areas for improvement.
+
+**Priority Improvements**:
+- Deepening the specificity of feedback to make it more actionable.
+- Enhancing clarity and context in justifying scores, especially around areas just below higher levels.
+
+**Implementation Suggestions**:
+- Incorporate specific examples or frameworks that could be used for future candidate responses.
+- Encourage a more systematic review of candidate experiences to highlight the adaptability and successes they achieved more vividly.
+
+"""
+
 
 ###############################################################################
 # MASTER_INSTRUCTIONS
@@ -745,6 +915,24 @@ There will also be a score of 1-5 for each individual question with justificatio
 For scoring, use the NexaTalent Rubric for Candidate Evaluation to assess and grade responses.
 For justification paragraphs, cite examples from the candidate's response and connect them to the NexaTalent rubric as appropriate.
 Ensure that your evaluation is strictly aligned with the quality standards outlined in the rubric provided in the context.
+
+Example Output:
+
+**Overall Score: 3 (Competent)**
+
+The candidate's responses indicate a reasonable understanding of their role in developing recruiting strategies with hiring managers. They provide examples of their efforts to ensure alignment and mutual understanding, particularly during high-demand hiring periods. However, their answers occasionally lack depth and clarity, particularly in illustrating the complexities of collaboration and communication.
+
+---
+
+**Main Question Score: 3 (Competent)**  
+The candidate describes their approach to partnering with hiring managers during a hiring frenzy, which reflects a basic understanding of the importance of alignment. They mention scheduling individual meetings to clarify profiles and timelines, demonstrating a competent strategy. However, the response lacks detail on how they ensured mutual understanding beyond initial conversations, and their explanation is somewhat disorganized, making it difficult to follow.
+
+**Follow-up 1 Score: 3 (Competent)**  
+In addressing differing priorities with hiring managers, the candidate mentions the importance of balancing quality with urgency, which is relevant. They touch on their efforts to communicate and build trust over time, but the response lacks specific examples of strategies used to resolve conflicts or prioritize effectively. The explanation is clear but could benefit from more comprehensive insights into how this balance was achieved in practice.
+
+**Follow-up 2 Score: 4 (Proficient)**  
+The candidate demonstrates an understanding of the need for ongoing communication with hiring managers, showing awareness of their time constraints. Their approach to communicating only after candidates pass an online assessment is practical and reflects a structured process. However, while they mention adapting communication for referrals, more detail on how they maintain engagement throughout the recruitment process would strengthen their response.
+
 """
 }
 
@@ -992,7 +1180,7 @@ if st.button("Generate"):
                 )
                 evaluator_tokens = compute_tokens_for_stage(evaluator_instructions_text, evaluator_submitted_text)
                 
-                score, evaluator_feedback, evaluator_prompt_tokens, evaluator_completion_tokens, evaluator_total_tokens = evaluate_content(initial_output, rubric_context)
+                score, evaluator_feedback, evaluator_prompt_tokens, evaluator_completion_tokens, evaluator_total_tokens = evaluate_content(initial_output, rubric_context, task)
 
                 # -------------------------------
                 # Step 3: Final (Refinement) Stage
@@ -1038,7 +1226,7 @@ if st.button("Generate"):
                     fallback_model_comparison=st.session_state.review_model_comparison,
                     fallback_model_judgement=st.session_state.review_model_judgement
                 )
-                
+
                 actionable_feedback = extract_actionable_feedback(evaluator_feedback)
                 
                 # Combine score and actionable feedback for logging

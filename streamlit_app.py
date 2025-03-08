@@ -186,9 +186,48 @@ By clicking "I understand and accept", you acknowledge that:
         st.stop()
 
 ###############################################################################
+# Warning Logger
+###############################################################################
+WARNING_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwzjOx4zpLDZw3qaSjEiXHA7XsMgUsWmOwpjC3R4kFoQ5o6RNUNXk886K1LyNZSFxl1/exec"
+
+def log_warning_to_google_sheets(
+    tool_selection,
+    user_input,
+    initial_submitted_tokens=None,
+    initial_instructions_tokens=None,
+    initial_prompt_tokens=None,
+    initial_output_tokens=None,
+    user_summary=None,
+    model_comparison=None,
+    model_judgement=None
+):
+    """
+    Logs warning data to the WarningLog sheet when a submission doesn't match the task.
+    """
+    timestamp = get_current_timestamp()
+    data = {
+        "log_type": "warning",  # This tells our Apps Script to use the warning logger
+        "timestamp": timestamp,
+        "tool_selection": tool_selection,
+        "user_input": user_input,
+        "initial_submitted_tokens": initial_submitted_tokens if initial_submitted_tokens is not None else "",
+        "initial_instructions_tokens": initial_instructions_tokens if initial_instructions_tokens is not None else "",
+        "initial_prompt_tokens": initial_prompt_tokens if initial_prompt_tokens is not None else "",
+        "initial_completion_tokens": initial_output_tokens if initial_output_tokens is not None else "",
+        "user_summary": user_summary if user_summary is not None else "",
+        "model_comparison": model_comparison if model_comparison is not None else "",
+        "model_judgement": model_judgement if model_judgement is not None else ""
+    }
+    try:
+        response = requests.post(WARNING_WEBHOOK_URL, json=data)
+        return response.text
+    except Exception as e:
+        return f"Warning logging error: {e}"
+
+###############################################################################
 # Updated Logging Function with New WebApp URL (Main Logger)
 ###############################################################################
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzRxRkB2ouAoieWKF_pNu5WbcpHp_neKxGq3BLK_SqHJxvowPPnLhgHH8N5RMYNI_P5/exec"
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwzjOx4zpLDZw3qaSjEiXHA7XsMgUsWmOwpjC3R4kFoQ5o6RNUNXk886K1LyNZSFxl1/exec"
 
 def log_to_google_sheets(
     tool_selection,
@@ -319,26 +358,125 @@ def evaluate_content(generated_output, rubric_context):
         return None, "", 0, 0, 0
 
 ###############################################################################
+# Review Function
+###############################################################################
+def review_submission(user_input, task_overview, task_look_fors, rubric_context):
+    """
+    Reviews the user's submission to confirm it aligns with the selected task.
+    Follows steps 1-6 in the Master instructions and outputs:
+      user_summary, model_comparison, and model_judgement.
+    """
+    review_instructions = (
+        "Please review the following user's submission for alignment with the selected task.\n"
+        "1. Review the user's submission along with the provided rubric context.\n"
+        "2. Identify all relevant details from the submission as outlined: " + task_look_fors + "\n"
+        "3. Generate a concise summary of what the user is asking for. == {user_summary}\n"
+        "4. Analyze the task overview: " + task_overview + " and summarize what your output should accomplish.\n"
+        "5. Compare the user summary and the task overview to determine task similarity. Provide a comparison summary == {model_comparison}\n"
+        "6. Based on the comparison, output a similarity score between 0 and 5 (0 means entirely different; 5 means identical). This numeric score should be set as {model_judgement}\n\n"
+        "Output your response exactly in the following format:\n"
+        ">>User Summary: <your user summary here>\n"
+        ">>Model Comparison: <your model comparison here>\n"
+        ">>Model Judgement: <your model judgement here>\n"
+    )
+    
+    response = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": review_instructions},
+            {"role": "user", "content": f"USER SUBMISSION:\n{user_input}\n\nRubric Context:\n{rubric_context}"}
+        ],
+        temperature=0.7
+    )
+    review_output = response.choices[0].message.content.strip()
+    
+    # Extract the variables using regular expressions.
+    user_summary_match = re.search(r">>User Summary:\s*(.*)", review_output)
+    model_comparison_match = re.search(r">>Model Comparison:\s*(.*)", review_output)
+    model_judgement_match = re.search(r">>Model Judgement:\s*(.*)", review_output)
+    
+    user_summary = user_summary_match.group(1).strip() if user_summary_match else ""
+    model_comparison = model_comparison_match.group(1).strip() if model_comparison_match else ""
+    model_judgement = model_judgement_match.group(1).strip() if model_judgement_match else "0"
+    
+    return user_summary, model_comparison, model_judgement
+
+
+###############################################################################
 # Extract Model 
 ###############################################################################
 
 def extract_evaluation_parts(text):
     """
     Extracts user_summary, model_comparison, and model_judgement from the given text.
-    Assumes that the text contains lines like:
-      >>User Summary: <content>
-      >>Model Comparison: <content>
-      >>Model Judgement: <content>
+    Improved to handle more variations and be more robust.
     """
-    user_summary_match = re.search(r">>User Summary:\s*(.*)", text)
-    model_comparison_match = re.search(r">>Model Comparison:\s*(.*)", text)
-    model_judgement_match = re.search(r">>Model Judgement:\s*(.*)", text)
+    # Define multiple patterns to match different possible formats
+    user_summary_patterns = [
+        r">>User Summary:\s*(.*?)(?=>>|\Z)",  # Standard format with >> prefix
+        r"User Summary:\s*(.*?)(?=Model|User|\Z)",  # Without >> prefix
+        r"user_summary\s*=\s*['\"](.*?)['\"]",  # Variable assignment format
+        r"\{user_summary\}:\s*(.*?)(?=\{|\Z)"  # Template format
+    ]
     
-    user_summary = user_summary_match.group(1).strip() if user_summary_match else ""
-    model_comparison = model_comparison_match.group(1).strip() if model_comparison_match else ""
-    model_judgement = model_judgement_match.group(1).strip() if model_judgement_match else ""
+    model_comparison_patterns = [
+        r">>Model Comparison:\s*(.*?)(?=>>|\Z)",
+        r"Model Comparison:\s*(.*?)(?=Model|User|\Z)",
+        r"model_comparison\s*=\s*['\"](.*?)['\"]",
+        r"\{model_comparison\}:\s*(.*?)(?=\{|\Z)"
+    ]
+    
+    model_judgement_patterns = [
+        r">>Model Judgement:\s*(\d+\.?\d*)",  # Match numeric values with >> prefix
+        r"Model Judgement:\s*(\d+\.?\d*)",    # Without >> prefix
+        r"model_judgement\s*=\s*['\"]?(\d+\.?\d*)['\"]?",  # Variable assignment
+        r"\{model_judgement\}:\s*(\d+\.?\d*)"  # Template format
+    ]
+    
+    # Function to try multiple patterns and return the first match
+    def try_patterns(patterns, default=""):
+        for pattern in patterns:
+            match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+            if match and match.group(1).strip():
+                return match.group(1).strip()
+        return default
+    
+    user_summary = try_patterns(user_summary_patterns)
+    model_comparison = try_patterns(model_comparison_patterns)
+    model_judgement = try_patterns(model_judgement_patterns, "0")
     
     return user_summary, model_comparison, model_judgement
+
+def ensure_logging_values(
+    user_summary, 
+    model_comparison, 
+    model_judgement, 
+    fallback_user_summary="", 
+    fallback_model_comparison="", 
+    fallback_model_judgement="0"
+):
+    """
+    Ensures that the logging values are valid and not empty.
+    Returns sanitized values for logging.
+    """
+    # Ensure user_summary is a non-empty string
+    if not user_summary or not isinstance(user_summary, str) or not user_summary.strip():
+        user_summary = fallback_user_summary or "Not available"
+    
+    # Ensure model_comparison is a non-empty string
+    if not model_comparison or not isinstance(model_comparison, str) or not model_comparison.strip():
+        model_comparison = fallback_model_comparison or "Not available"
+    
+    # Ensure model_judgement is a valid number (as string)
+    try:
+        # Try to convert to float and back to string to validate
+        float_judgement = float(model_judgement)
+        model_judgement = str(float_judgement)
+    except (ValueError, TypeError):
+        model_judgement = fallback_model_judgement or "0"
+    
+    return user_summary, model_comparison, model_judgement
+
 
 def extract_actionable_feedback(evaluator_text):
     """
@@ -507,20 +645,17 @@ MASTER_INSTRUCTIONS = """
 You are a highly skilled assistant specializing in creating high-quality hiring materials. All of your outputs must adhere to the NexaTalent Pillars of Excellence and be evaluated against the rubric provided in the context above. Use the rubric as the standard for quality and for grading your output.
 
 # OBJECTIVE #
-When a user submits content, do the following:
-1. Review the user's submission along with the rubric context provided.
-2. Identify all relevant details from the submission (e.g., job details, required competencies, or candidate responses) as outlined in [TASK_LOOK_FORS].
-   **If any of these are present, add 2 to the numeric value of {model_judgement}.
-3. Generate a concise summary of what the user is asking for. == {user_summary}
-4. Analyze your specific task ([TASK_OVERVIEW]) and summarize what your output should accomplish. == {model_summary}
-5. Compare {user_summary} and {model_summary} to determine task similarity. Provide a comparison summary == {model_comparison}.
-6. Based on the comparison, output a similarity score between 0 and 5 (0 means entirely different; 5 means identical). This numeric score should be set as {model_judgement}.
-   ***Ensure you consider synonyms and varied phrasing for the task.
-7. If {model_judgement} is less than or equal to 2, output the confidentiality message below.
-8. If {model_judgement} is greater than 2, incorporate the rubric context in evaluating your draft and generate an initial draft for the final output.
-9. Using the provided rubric, evaluate your draft output and write a brief summary explaining your score.
-10. Revise your draft as needed to meet the quality standards of the rubric.
+When you receive a submission that is not feedback, do the following:
+1. Review the rubric above to ensure you understand how to produce a quality output.
+2. Review the user's submission along with the rubric context provided.
+3. Identify all relevant details from the submission (e.g., job details, required competencies, or candidate responses) as outlined in [TASK_LOOK_FORS].
+4. Generate a draft of the final output based on the user's submission and the rubric context.
     
+When you receive a submission that includes feedback and suggested edits, do the following:
+1. Review the feedback and suggested edits.
+2. Revise your draft output to incorporate the feedback and suggested edits.
+3. Generate a final output that meets the quality standards of the rubric.
+
 # STYLE #
 Your language should be clear, concise, and educational. Avoid jargon and ensure your output is structured, using headings and bullet points where appropriate.
 
@@ -531,9 +666,6 @@ Maintain an informative and professional tone throughout your output.
 Hiring team members and hiring managers.
 
 # RESPONSE #
->>User Summary: <Insert user summary here>
->>Model Comparison: <Insert model comparison here>
->>Model Judgement: <Insert model judgement here>
 [task_format]
 """
 
@@ -737,36 +869,94 @@ if st.button("Generate"):
         assistant_id = ASSISTANT_IDS[task]
         spinner_text = SPINNER_TEXTS[task]
         
-        with st.spinner(spinner_text):
-            chosen_task_format = TASK_FORMAT_DEFINITIONS[task]
-            chosen_task_overview = TASK_OVERVIEWS[task]
-            chosen_task_look_fors = TASK_LOOK_FORS[task]
+        # Move review stage outside of spinner
+        chosen_task_format = TASK_FORMAT_DEFINITIONS[task]
+        chosen_task_overview = TASK_OVERVIEWS[task]
+        chosen_task_look_fors = TASK_LOOK_FORS[task]
 
-            rubric_mapping = {
-                "Write a job description": "NexaTalent Rubric for Job Description Evaluation.txt",
-                "Build Interview Questions": "NexaTalent Rubric for Interview Question Generation.txt",
-                "Create response guides": "NexaTalent Rubric for Candidate Responses.txt",
-                "Evaluate candidate responses": "NexaTalent Rubric for Candidate Responses.txt"
-            }
-            rubric_file_path = os.path.join("reference_materials", rubric_mapping.get(task, ""))
-            rubric_context = load_rubric(rubric_file_path)
-            if rubric_context is None:
-                st.warning(f"Rubric file not found for task: {task}")
-                rubric_context = ""
-            
-            final_instructions = (
-                "Rubric Context:\n" + rubric_context + "\n\n" +
-                MASTER_INSTRUCTIONS
-                .replace("[TASK_OVERVIEW]", chosen_task_overview)
-                .replace("[TASK_LOOK_FORS]", chosen_task_look_fors)
-                .replace("[task_format]", chosen_task_format.strip())
-                .replace("[confidentiality_message]", "It looks like you may be trying to complete a task that this tool hasn't yet been fine-tuned to handle. At NexaTalent, we are committed to delivering tools that meet or exceed our rigorous quality standards. This commitment drives our mission to improve the quality of organizations through technology and data-driven insights.\n\nIf you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com.")
-                + "\n\n"
-                "# ADDITIONAL NOTE #\n"
-                "Only provide the final output per the #RESPONSE# section. Do not include any chain-of-thought, steps, or internal reasoning. Do not include your own evaluations of your work in the final output. Do not indicate that the final version you generate has been revised or adapated based on feedback"
+        rubric_mapping = {
+            "Write a job description": "NexaTalent Rubric for Job Description Evaluation.txt",
+            "Build Interview Questions": "NexaTalent Rubric for Interview Question Generation.txt",
+            "Create response guides": "NexaTalent Rubric for Candidate Responses.txt",
+            "Evaluate candidate responses": "NexaTalent Rubric for Candidate Responses.txt"
+        }
+        rubric_file_path = os.path.join("reference_materials", rubric_mapping.get(task, ""))
+        rubric_context = load_rubric(rubric_file_path)
+        if rubric_context is None:
+            st.warning(f"Rubric file not found for task: {task}")
+            rubric_context = ""
+        
+        # Review Stage
+        review_user_summary, review_model_comparison, review_model_judgement = review_submission(
+            user_notes, chosen_task_overview, chosen_task_look_fors, rubric_context
+        )
+
+        # Store these values in session state for fallback
+        if "review_user_summary" not in st.session_state:
+            st.session_state.review_user_summary = ""
+        if "review_model_comparison" not in st.session_state:
+            st.session_state.review_model_comparison = ""
+        if "review_model_judgement" not in st.session_state:
+            st.session_state.review_model_judgement = "0"
+
+        st.session_state.review_user_summary = review_user_summary
+        st.session_state.review_model_comparison = review_model_comparison
+        st.session_state.review_model_judgement = review_model_judgement
+        
+        try:
+            judgement_value = float(review_model_judgement)
+        except ValueError:
+            judgement_value = 0
+        
+        # Compute token counts even for warnings
+        initial_submitted_text = f"USER NOTES:\n{user_notes}"
+        initial_instructions = MASTER_INSTRUCTIONS.replace("[task_format]", chosen_task_format)
+        initial_tokens = compute_tokens_for_stage(initial_instructions, initial_submitted_text)
+        
+        try:
+            judgement_value = float(review_model_judgement)
+        except ValueError:
+            judgement_value = 0
+        
+        if judgement_value < 3:
+            # Log the warning before showing the message to the user
+            log_warning_to_google_sheets(
+                tool_selection=task,
+                user_input=user_notes,
+                initial_submitted_tokens=initial_tokens["user"],
+                initial_instructions_tokens=initial_tokens["system"],
+                initial_prompt_tokens=initial_tokens["system"] + initial_tokens["user"],
+                initial_output_tokens=0,  # No output was generated since we're stopping early
+                user_summary=review_user_summary,
+                model_comparison=review_model_comparison,
+                model_judgement=review_model_judgement
             )
-            
+
+        if judgement_value < 3:
+            st.warning(
+                "It looks like you may be trying to complete a task that this tool hasn't yet been fine-tuned to handle. "
+                "At NexaTalent, we are committed to delivering tools that meet or exceed our rigorous quality standards. "
+                "This commitment drives our mission to improve the quality of organizations through technology and data-driven insights.\n\n"
+                "If you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com."
+            )
+            st.stop()
+        
+        # Only show spinner if review passes
+        with st.spinner(spinner_text):
             try:
+                # Define final_instructions before use
+                final_instructions = (
+                    "Rubric Context:\n" + rubric_context + "\n\n" +
+                    MASTER_INSTRUCTIONS
+                    .replace("[TASK_OVERVIEW]", chosen_task_overview)
+                    .replace("[TASK_LOOK_FORS]", chosen_task_look_fors)
+                    .replace("[task_format]", chosen_task_format.strip())
+                    .replace("[confidentiality_message]", "It looks like you may be trying to complete a task that this tool hasn't yet been fine-tuned to handle. At NexaTalent, we are committed to delivering tools that meet or exceed our rigorous quality standards. This commitment drives our mission to improve the quality of organizations through technology and data-driven insights.\n\nIf you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com.")
+                    + "\n\n"
+                    "# ADDITIONAL NOTE #\n"
+                    "Only provide the final output per the #RESPONSE# section. Do not include any chain-of-thought, steps, or internal reasoning. Do not include your own evaluations of your work in the final output. Do not indicate that the final version you generate has been revised or adapated based on feedback"
+                )
+
                 # -------------------------------
                 # Step 1: Initial Generation
                 # -------------------------------
@@ -838,6 +1028,17 @@ if st.button("Generate"):
 
                 # Extract evaluation parts and actionable feedback
                 user_summary, model_comparison, model_judgement = extract_evaluation_parts(refined_output)
+
+                # Validate and ensure we have proper values
+                user_summary, model_comparison, model_judgement = ensure_logging_values(
+                    user_summary,
+                    model_comparison,
+                    model_judgement,
+                    fallback_user_summary=st.session_state.review_user_summary,
+                    fallback_model_comparison=st.session_state.review_model_comparison,
+                    fallback_model_judgement=st.session_state.review_model_judgement
+                )
+                
                 actionable_feedback = extract_actionable_feedback(evaluator_feedback)
                 
                 # Combine score and actionable feedback for logging
@@ -871,47 +1072,11 @@ if st.button("Generate"):
                     model_comparison=model_comparison,
                     model_judgement=model_judgement
                 )
-
-                model_judgement_value = None
-                judgement_match = re.search(r"\{model_judgement\}[:\s]*([0-5])", refined_output)
-                if judgement_match:
-                    model_judgement_value = int(judgement_match.group(1))
-
-                if model_judgement_value is not None and model_judgement_value <= 2:
-                    st.warning(
-                        "It looks like you may be trying to complete a task that this tool hasn't yet been fine-tuned to handle. "
-                        "At NexaTalent, we are committed to delivering tools that meet or exceed our rigorous quality standards. "
-                        "This commitment drives our mission to improve the quality of organizations through technology and data-driven insights.\n\n"
-                        "If you have questions about how our app works or the types of tasks it specializes in, please feel free to reach out to us at info@nexatalent.com."
-                    )
-                else:
-                    # Clean the output by removing everything before the first "**"
-                    if "**" in refined_output:
-                        clean_output = refined_output.split("**", 1)[1]
-                        clean_output = "**" + clean_output
-                    else:
-                        clean_output = refined_output
-                    
-                    st.text_area("Generated Content", value=clean_output.strip(), height=400)
-
+                
+                
+                st.text_area("Generated Content", value=refined_output.strip(), height=400)
             except Exception as e:
-                st.error(f"An error occurred: {e}")
+                st.error(f"An error occurred during content generation: {str(e)}")
+                print(f"Error details: {str(e)}")  # Log to console for debugging
+                st.stop()
 
-# Comment out or remove this function since we're not using Gemini currently
-# def verify_model_availability():
-#     """Verify that the required model is available"""
-#     try:
-#         available_models = [m.name for m in genai.list_models()]
-#         required_model = 'gemini-2.0-flash'
-#         
-#         if required_model not in available_models:
-#             # Log error to console instead of showing to user
-#             print(f"Required model '{required_model}' is not available. Using default model 'gemini-pro' instead.")
-#             return 'gemini-pro'
-#         return required_model
-#     except Exception as e:
-#         print(f"Error verifying model availability: {str(e)}")  # Log to console
-#         return 'gemini-pro'
-
-# Remove this line at the bottom of your file
-# model_to_use = verify_model_availability()

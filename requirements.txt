@@ -3,3 +3,10 @@ openai
 python-dotenv
 google-generativeai
 tiktoken
+python-docx
+python-fitz
+python-re
+python-zipfile
+python-threading
+python-threading
+textract

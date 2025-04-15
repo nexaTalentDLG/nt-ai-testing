@@ -1,0 +1,10 @@
+**Consent to Use NexaTalent AI**
+
+By using this tool, you acknowledge and agree to the following:
+
+1. **Data Use**: The content you input may be processed via the OpenAI API and used to generate content for hiring purposes.
+2. **Logging**: Your inputs, generated outputs, evaluation summaries, and total token usage will be logged internally to improve product performance and support.
+3. **Privacy**: Your email is collected solely for accountability and tracking purposes and will not be shared externally.
+4. **Confidentiality**: Do not enter personally identifiable candidate data or sensitive business information unless authorized.
+
+By clicking "I Consent", you agree to these terms and may proceed to use the tool.

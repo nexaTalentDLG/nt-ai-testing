@@ -5,3 +5,4 @@ google-generativeai
 tiktoken
 python-docx
 pymupdf
+PyPDF2

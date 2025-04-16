@@ -20,6 +20,13 @@ import os
 import re
 import json
 
+TOOL_OUTPUT_TITLES = {
+    "Write a job description": "Job Description",
+    "Build Interview Questions": "Interview Questions",
+    "Create response guides": "Candidate Response Guide",
+    "Evaluate candidate responses": "Evaluation Summary"
+}
+
 def extract_score(evaluation_text):
     match = re.search(r"Score:\s*([0-5](?:\.\d+)?)", evaluation_text)
     return float(match.group(1)) if match else None
@@ -76,12 +83,12 @@ st.sidebar.header("Tools")
 task = st.sidebar.selectbox(
     "Select a task:", 
     list(ASSISTANT_IDS.keys()), 
-    disabled=st.session_state.get("generated_complete", False)
+    #disabled=st.session_state.get("generated_complete", False)
 )
 
 st.sidebar.header("Controls")
 generate_disabled = st.session_state.get("generated_complete", False) and "final_output" in st.session_state
-if st.sidebar.button("Generate", use_container_width=True, type="primary", key="generate", disabled=generate_disabled):
+if st.sidebar.button("Generate", use_container_width=True, type="primary", key="generate"):
     st.session_state.generate_clicked = True
     st.session_state.generated_complete = False
 
@@ -98,53 +105,102 @@ if not st.session_state.get("generated_complete", False):
 else:
     docx_buffer = st.session_state.get("docx_buffer")
     if docx_buffer:
+        # Get the specific title for the current task
+        output_title = TOOL_OUTPUT_TITLES.get(task, "Final Output")
+        
         st.sidebar.download_button(
-            "\U0001F4BE Download Final Output (.docx)",
+            f"\U0001F4BE Download {output_title} (.docx)",
             docx_buffer,
-            file_name="final_output.docx",
+            file_name=f"{output_title}.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             key="download_docx"
         )
+        
+        # Add clipboard copy functionality - properly in sidebar
+        if st.session_state.get("final_output"):
+            from streamlit.components.v1 import html
+            copy_button_html = f"""
+            <script>
+            function copyToClipboard() {{
+                const text = `{st.session_state.final_output.replace("`", "\\`").replace("'", "\\'").replace('"', '\\"').replace("\n", "\\n")}`;
+                navigator.clipboard.writeText(text).then(function() {{
+                    const successMsg = document.getElementById('copy-message');
+                    successMsg.innerHTML = '✅ Copied to clipboard!';
+                    successMsg.style.display = 'block';
+                    successMsg.style.backgroundColor = '#d4edda';
+                    successMsg.style.color = '#155724';
+                    successMsg.style.padding = '8px';
+                    successMsg.style.borderRadius = '4px';
+                    successMsg.style.marginTop = '10px';
+                    successMsg.style.textAlign = 'center';
+                    successMsg.style.border = '1px solid #c3e6cb';
+                    
+                    setTimeout(function() {{
+                        successMsg.style.display = 'none';
+                    }}, 3000);
+                }})
+                .catch(function() {{
+                    const errorMsg = document.getElementById('copy-message');
+                    errorMsg.innerHTML = '❌ Failed to copy';
+                    errorMsg.style.display = 'block';
+                    errorMsg.style.backgroundColor = '#f8d7da';
+                    errorMsg.style.color = '#721c24';
+                    errorMsg.style.padding = '8px';
+                    errorMsg.style.borderRadius = '4px';
+                    errorMsg.style.marginTop = '10px';
+                    errorMsg.style.textAlign = 'center';
+                    errorMsg.style.border = '1px solid #f5c6cb';
+                    
+                    setTimeout(function() {{
+                        errorMsg.style.display = 'none';
+                    }}, 3000);
+                }});
+            }}
+            </script>
+            <button onclick="copyToClipboard()" style="width:100%; padding:8px; margin:5px 0; background-color:#f0f2f6; border:1px solid #ccc; border-radius:4px; cursor:pointer;">
+                📋 Copy Text to Clipboard
+            </button>
+            <div id="copy-message" style="display:none; margin-bottom:10px;"></div>
+            """
+            # Use sidebar's container to ensure the HTML component is in the sidebar
+            sidebar_container = st.sidebar.container()
+            with sidebar_container:
+                html(copy_button_html, height=100)
 
-if not st.session_state.get("generated_complete", False):
-    st.write("How would you like to provide additional notes or information?")
-    col1, col2, *_ = st.columns(6)
-    with col1:
-        if st.button("Paste text", type="primary"):
-            st.session_state.input_method = "paste"
-    with col2:
-        if st.button("Upload file"):
-            st.session_state.input_method = "upload"
+st.write("How would you like to provide additional notes or information?")
+col1, col2, *_ = st.columns(6)
+with col1:
+    if st.button("Paste text", type="primary"):
+        st.session_state.input_method = "paste"
+with col2:
+    if st.button("Upload file"):
+        st.session_state.input_method = "upload"
 
-    user_notes = ""
-    if st.session_state.input_method == "paste":
-        user_notes = st.text_area("Enter additional notes or information:")
+user_notes = ""
+if st.session_state.input_method == "paste":
+    user_notes = st.text_area("Enter additional notes or information:")
 
-        # Show instructions help only when pasting
-        show_help_expander = (
-            st.session_state.get("input_method") == "paste"
-            and not st.session_state.get("generate_clicked", False)
-            and not st.session_state.get("review_user_summary")
-            and not st.session_state.get("initial_draft")
-            and not st.session_state.get("evaluation")
-            and not st.session_state.get("final_output")
-        )
+    # Show instructions help only when pasting
+    show_help_expander = (
+        st.session_state.get("input_method") == "paste"
+        and not st.session_state.get("generate_clicked", False)
+        and not st.session_state.get("review_user_summary")
+        and not st.session_state.get("initial_draft")
+        and not st.session_state.get("evaluation")
+        and not st.session_state.get("final_output")
+    )
 
-        if show_help_expander:
-            with st.expander("Need help getting started?"):
-                st.markdown(TASK_INSTRUCTIONS[task])
+    if show_help_expander:
+        with st.expander("Need help getting started?"):
+            st.markdown(TASK_INSTRUCTIONS[task])
 
-
-
-
-
-    else:
-        uploaded_file = st.file_uploader("Upload a file", type=["txt", "md", "docx", "pdf"])
-        if uploaded_file:
-            user_notes = extract_text_from_file(uploaded_file)
-            st.success(f"Successfully extracted text from {uploaded_file.name}")
-            #with st.expander("Preview extracted content"):
-            #    st.text(user_notes[:500] + ("..." if len(user_notes) > 500 else ""))
+elif st.session_state.input_method == "upload":
+    uploaded_file = st.file_uploader("Upload a file", type=["txt", "md", "docx", "pdf"])
+    if uploaded_file:
+        user_notes = extract_text_from_file(uploaded_file)
+        st.success(f"Successfully extracted text from {uploaded_file.name}")
+        #with st.expander("Preview extracted content"):
+        #    st.text(user_notes[:500] + ("..." if len(user_notes) > 500 else ""))
 
 
 if st.session_state.get("review_blocked"):
@@ -190,7 +246,7 @@ if st.session_state.get("generate_clicked", False) and not st.session_state.get(
         if score > 3:
             log_review_warning(task, user_notes)
             st.session_state.review_blocked = True
-            st.session_state.review_warning = "\u26a0\ufe0f Your input doesn’t align with the selected tool. Please revise your notes or select a different option."
+            st.session_state.review_warning = "\u26a0\ufe0f Your input doesn't align with the selected tool. Please revise your notes or select a different option."
             st.stop()
 
 #################### INITIAL DRAFT ####################
@@ -277,16 +333,9 @@ if st.session_state.get("generate_clicked", False) and not st.session_state.get(
     #st.code(json.dumps(debug_log, indent=2))
     st.rerun()
 
-TOOL_OUTPUT_TITLES = {
-    "Write a job description": "Your Job Description",
-    "Build Interview Questions": "Your Interview Questions",
-    "Create response guides": "Your Candidate Response Guide",
-    "Evaluate candidate responses": "Your Evaluation Summary"
-}
-
 if st.session_state.get("generated_complete", False) and st.session_state.get("final_output"):
     st.markdown("---")
-    output_title = TOOL_OUTPUT_TITLES.get(task, "Your Content")
-    st.header(output_title)
+    st.header("Your Generated Content")
+    st.subheader(f"**{TOOL_OUTPUT_TITLES[task]}**\n")
     st.write(st.session_state.final_output)
 

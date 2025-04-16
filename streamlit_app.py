@@ -19,6 +19,8 @@ from io import BytesIO
 import os
 import re
 import json
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 TOOL_OUTPUT_TITLES = {
     "Write a job description": "Job Description",
@@ -57,24 +59,38 @@ if "user_email" not in st.session_state:
     st.session_state.user_email = ""
 
 if not st.session_state.consent_accepted:
-    with open("utils/consent_screen.txt", "r", encoding="utf-8") as f:
-        consent_text = f.read()
-    st.image("reference_materials/Logo_Nexatalent_RGB.png", width=200)
-    st.markdown("## Consent Required to Continue")
-    st.markdown(consent_text)
-    email = st.text_input("Enter your email address to proceed:")
-    valid_email = re.match(r"[^@]+@[^@]+\.[^@]+", email)
+    consent_container = st.empty()  # Create a container for the consent UI
+    with consent_container.container():
+        st.image("reference_materials/Logo_Nexatalent_RGB.png", width=200)
+        st.markdown("## NexaTalent Consent Agreement")
+        st.write('This version of the NexaTalent app is currently in a testing phase. By entering your email and pressing **I understand and accept** you agree to the following:')
 
-    if st.button("I Consent", disabled=not valid_email):
-        response = log_consent(email)
-        if response:
-            st.session_state.consent_accepted = True
-            st.session_state.user_email = email
-            st.success("✅ Thank you! You're all set.")
-            st.rerun()
-        else:
-            st.error("There was a problem logging your consent. Please try again.")
-    st.stop()
+        # Generate today's date in PST in a readable format
+        today = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%B %d, %Y")
+        
+        # Read the consent text from file and format with today's date
+        consent_file_path = "utils/consent_screen.txt"
+        with open(consent_file_path, "r", encoding="utf-8") as f:
+            user_agreement_text = f.read().replace("{date}", today)
+            
+        st.text_area("User Agreement", value=user_agreement_text, height=200, disabled=True)
+        st.write('Please enter a valid email. This is used for communicating updates and providing support.')
+
+        email = st.text_input("Enter your email address:")
+        valid_email = re.match(r"[^@]+@[^@]+\.[^@]+", email)
+
+        if st.button("I understand and accept", disabled=not valid_email):
+            response = log_consent(email)
+            if response:
+                st.session_state.consent_accepted = True
+                st.session_state.user_email = email
+                st.success("✅ Thank you! You're all set.")
+                st.rerun()
+            else:
+                st.error("There was a problem logging your consent. Please try again.")
+    
+    if not st.session_state.consent_accepted:
+        st.stop()
 
 st.image("reference_materials/Logo_Nexatalent_RGB.png", width=300)
 st.subheader("Your assistant for generating high-quality hiring content.")

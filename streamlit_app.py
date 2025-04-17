@@ -121,8 +121,9 @@ if not st.session_state.get("generated_complete", False):
 else:
     docx_buffer = st.session_state.get("docx_buffer")
     if docx_buffer:
-        # Get the specific title for the current task
-        output_title = TOOL_OUTPUT_TITLES.get(task, "Final Output")
+        # Get the specific title for the task that generated the current content
+        last_task = st.session_state.get("last_generated_task", task)
+        output_title = TOOL_OUTPUT_TITLES.get(last_task, "Final Output")
         
         st.sidebar.download_button(
             f"\U0001F4BE Download {output_title} (.docx)",
@@ -332,6 +333,9 @@ if st.session_state.get("generate_clicked", False) and not st.session_state.get(
     st.session_state.evaluator_feedback = st.session_state.evaluation
     st.session_state.refined_output = st.session_state.final_output
 
+    # Store the current task as the one being generated
+    st.session_state.last_generated_task = task
+
     log_final_success(task, user_notes)
     st.session_state.generated_complete = True
 
@@ -356,6 +360,8 @@ if st.session_state.get("generate_clicked", False) and not st.session_state.get(
 if st.session_state.get("generated_complete", False) and st.session_state.get("final_output"):
     st.markdown("---")
     st.header("Your Generated Content")
-    st.subheader(f"**{TOOL_OUTPUT_TITLES[task]}**\n")
+    # Use the last generated task for the subheader too
+    last_task = st.session_state.get("last_generated_task", task)
+    st.subheader(f"**{TOOL_OUTPUT_TITLES[last_task]}**\n")
     st.write(st.session_state.final_output)
 

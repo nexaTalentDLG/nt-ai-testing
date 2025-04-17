@@ -132,13 +132,17 @@ else:
             key="download_docx"
         )
         
-        # Add clipboard copy functionality - properly in sidebar
+        # Add clipboard copy functionality
         if st.session_state.get("final_output"):
             from streamlit.components.v1 import html
+            
+            # Prepare the text for copying by escaping special characters
+            escaped_text = st.session_state.final_output.replace('`', r'\`').replace("'", r"\'").replace('"', r'\"').replace('\n', r'\n')
+            
             copy_button_html = f"""
             <script>
             function copyToClipboard() {{
-                const text = `{st.session_state.final_output.replace("`", "\\`").replace("'", "\\'").replace('"', '\\"').replace("\n", "\\n")}`;
+                const text = `{escaped_text}`;
                 navigator.clipboard.writeText(text).then(function() {{
                     const successMsg = document.getElementById('copy-message');
                     successMsg.innerHTML = '✅ Copied to clipboard!';
